@@ -11,33 +11,14 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class InterviewService {
 
-    private final InterviewRepository interviewRepository;
+    private final OpenAIService openAIService;
 
     public InterviewResponse startInterview(InterviewRequest request) {
 
-        Interview interview = new Interview();
-
-        interview.setTopic(request.getTopic());
-        interview.setDifficulty(request.getDifficulty());
-        interview.setCompleted(false);
-        interview.setScore(0);
-
-        interviewRepository.save(interview);
-
-        String question = switch (request.getTopic().toLowerCase()) {
-
-            case "java" ->
-                    "Explain the difference between JDK, JRE, and JVM.";
-
-            case "spring boot" ->
-                    "What is Dependency Injection in Spring Boot?";
-
-            case "sql" ->
-                    "What is the difference between INNER JOIN and LEFT JOIN?";
-
-            default ->
-                    "Tell me about yourself.";
-        };
+        String question = openAIService.generateQuestion(
+        request.getTopic(),
+        request.getDifficulty()
+);
 
         return new InterviewResponse(question);
     }
