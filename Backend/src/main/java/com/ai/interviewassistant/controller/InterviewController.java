@@ -6,6 +6,8 @@ import com.ai.interviewassistant.service.InterviewService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import com.ai.interviewassistant.dto.AnswerRequest;
+import com.ai.interviewassistant.dto.AnswerResponse;
 
 @RestController
 @RequestMapping("/api/interview")
@@ -18,7 +20,22 @@ public class InterviewController {
     @PostMapping("/start")
     public ResponseEntity<InterviewResponse> startInterview(@RequestBody InterviewRequest request) {
         return ResponseEntity.ok(
-                interviewService.startInterview(request)
-        );
+                interviewService.startInterview(request));
+    }
+
+    @PostMapping("/answer")
+    public ResponseEntity<AnswerResponse> evaluateAnswer(
+            @RequestBody AnswerRequest request) {
+
+        return ResponseEntity.ok(
+                interviewService.evaluateAnswer(request));
+    }
+
+    @PostMapping("/next")
+    public ResponseEntity<InterviewResponse> nextQuestion(
+            @RequestBody InterviewRequest request) {
+
+        return ResponseEntity.ok(
+                interviewService.nextQuestion(request));
     }
 }
