@@ -1,8 +1,5 @@
 package com.ai.interviewassistant.service;
 
-import com.ai.interviewassistant.dto.GeminiContent;
-import com.ai.interviewassistant.dto.GeminiPart;
-import com.ai.interviewassistant.dto.GeminiResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
@@ -18,7 +15,7 @@ public class AIService {
 
     private final WebClient webClient;
 
-    @Value("${gemini.api.key}")
+    @Value("${openrouter.api.key}")
     private String apiKey;
 
     public String generateQuestion(String topic, String difficulty) {
@@ -34,32 +31,26 @@ public class AIService {
                 Return only the question.
                 """.formatted(topic, difficulty);
 
-        GeminiPart part = new GeminiPart();
-        part.setText(prompt);
-
-        GeminiContent content = new GeminiContent();
-        content.setParts(List.of(part));
-
         Map<String, Object> requestBody = Map.of(
-                "contents", List.of(content));
+                "model", "openrouter/free",
+                "messages", List.of(
+                        Map.of(
+                                "role", "user",
+                                "content", prompt
+                        )
+                )
+        );
 
-        GeminiResponse response = webClient.post()
-                .uri(uriBuilder -> uriBuilder
-                        .path("/v1beta/models/mini-3.6-flash:generateContent")
-                        .queryParam("key", apiKey)
-                        .build())
+        Map response = webClient.post()
+                .uri("/api/v1/chat/completions")
+                .header("Authorization", "Bearer " + apiKey)
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(requestBody)
                 .retrieve()
-                .bodyToMono(GeminiResponse.class)
+                .bodyToMono(Map.class)
                 .block();
 
-        return response.getCandidates()
-                .get(0)
-                .getContent()
-                .getParts()
-                .get(0)
-                .getText();
+        return extractText(response);
     }
 
     public String evaluateAnswer(
@@ -82,35 +73,41 @@ public class AIService {
                 2. What was done well.
                 3. What could be improved.
                 4. A score out of 10.
+                5. The ideal/correct answer.
 
                 Keep the feedback concise.
                 """.formatted(question, answer);
 
-        GeminiPart part = new GeminiPart();
-        part.setText(prompt);
-
-        GeminiContent content = new GeminiContent();
-        content.setParts(List.of(part));
-
         Map<String, Object> requestBody = Map.of(
-                "contents", List.of(content));
+                "model", "openrouter/free",
+                "messages", List.of(
+                        Map.of(
+                                "role", "user",
+                                "content", prompt
+                        )
+                )
+        );
 
-        GeminiResponse response = webClient.post()
-                .uri(uriBuilder -> uriBuilder
-                        .path("/v1beta/models/mini-3.6-flash:generateContent")
-                        .queryParam("key", apiKey)
-                        .build())
+        Map response = webClient.post()
+                .uri("/api/v1/chat/completions")
+                .header("Authorization", "Bearer " + apiKey)
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(requestBody)
                 .retrieve()
-                .bodyToMono(GeminiResponse.class)
+                .bodyToMono(Map.class)
                 .block();
 
-        return response.getCandidates()
-                .get(0)
-                .getContent()
-                .getParts()
-                .get(0)
-                .getText();
+        return extractText(response);
+    }
+
+    private String extractText(Map response) {
+
+        List choices = (List) response.get("choices");
+
+        Map choice = (Map) choices.get(0);
+
+        Map message = (Map) choice.get("message");
+
+        return (String) message.get("content");
     }
 }
