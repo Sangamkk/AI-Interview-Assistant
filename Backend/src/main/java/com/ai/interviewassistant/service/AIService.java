@@ -1,5 +1,7 @@
 package com.ai.interviewassistant.service;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
@@ -14,11 +16,16 @@ import java.util.Map;
 public class AIService {
 
     private final WebClient webClient;
+    private final ObjectMapper objectMapper;
 
     @Value("${openrouter.api.key}")
     private String apiKey;
 
-    public String generateQuestion(String topic, String difficulty) {
+
+    // Generate interview question
+    public String generateQuestion(
+            String topic,
+            String difficulty) {
 
         String prompt = """
                 You are a professional technical interviewer.
@@ -43,7 +50,10 @@ public class AIService {
 
         Map response = webClient.post()
                 .uri("/api/v1/chat/completions")
-                .header("Authorization", "Bearer " + apiKey)
+                .header(
+                        "Authorization",
+                        "Bearer " + apiKey
+                )
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(requestBody)
                 .retrieve()
@@ -53,7 +63,9 @@ public class AIService {
         return extractText(response);
     }
 
-    public String evaluateAnswer(
+
+    // Evaluate candidate answer
+    public Map<String, Object> evaluateAnswer(
             String question,
             String answer) {
 
@@ -68,14 +80,20 @@ public class AIService {
                 Candidate's Answer:
                 %s
 
-                Give a short evaluation containing:
-                1. Whether the answer is correct.
-                2. What was done well.
-                3. What could be improved.
-                4. A score out of 10.
-                5. The ideal/correct answer.
+                Return ONLY valid JSON in exactly this format:
 
-                Keep the feedback concise.
+                {
+                  "feedback": "short evaluation",
+                  "score": 8,
+                  "correctAnswer": "ideal answer"
+                }
+
+                Rules:
+                - score must be a number from 0 to 10
+                - feedback should be concise
+                - correctAnswer should contain the ideal answer
+                - do not use markdown
+                - do not add any text outside the JSON
                 """.formatted(question, answer);
 
         Map<String, Object> requestBody = Map.of(
@@ -90,16 +108,36 @@ public class AIService {
 
         Map response = webClient.post()
                 .uri("/api/v1/chat/completions")
-                .header("Authorization", "Bearer " + apiKey)
+                .header(
+                        "Authorization",
+                        "Bearer " + apiKey
+                )
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(requestBody)
                 .retrieve()
                 .bodyToMono(Map.class)
                 .block();
 
-        return extractText(response);
+        String aiResponse = extractText(response);
+
+        try {
+
+            return objectMapper.readValue(
+                    aiResponse,
+                    new TypeReference<Map<String, Object>>() {}
+            );
+
+        } catch (Exception e) {
+
+            throw new RuntimeException(
+                    "AI returned invalid JSON: " + aiResponse,
+                    e
+            );
+        }
     }
 
+
+    // Extract AI text from OpenRouter response
     private String extractText(Map response) {
 
         List choices = (List) response.get("choices");

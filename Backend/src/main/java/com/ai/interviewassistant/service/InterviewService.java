@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import com.ai.interviewassistant.dto.AnswerResponse;
 import com.ai.interviewassistant.dto.AnswerRequest;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -24,10 +25,8 @@ public class InterviewService {
 
     public AnswerResponse evaluateAnswer(AnswerRequest request) {
 
-        String feedback = aiService.evaluateAnswer(
-                request.getQuestion(),
-                request.getAnswer());
-
+        Map<String, Object> result = aiService.evaluateAnswer( request.getQuestion(), request.getAnswer());
+        String feedback = (String) result.get("feedback");
         return new AnswerResponse(feedback);
     }
 
