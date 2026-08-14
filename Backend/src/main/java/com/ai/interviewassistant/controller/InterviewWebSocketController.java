@@ -27,12 +27,7 @@ public class InterviewWebSocketController {
             String topic = message.get("topic");
             String difficulty = message.get("difficulty");
 
-            String question =
-                    aiService.generateQuestion(
-                            topic,
-                            difficulty
-                    );
-
+            String question = aiService.generateQuestion( topic, difficulty );
             return Map.of(
                     "type", "QUESTION",
                     "question", question

@@ -23,10 +23,7 @@ public class AIService {
 
 
     // Generate interview question
-    public String generateQuestion(
-            String topic,
-            String difficulty) {
-
+    public String generateQuestion( String topic, String difficulty) {
         String prompt = """
                 You are a professional technical interviewer.
 
