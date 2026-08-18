@@ -7,7 +7,12 @@ import InterviewSetup from "@/components/interview/InterviewSetup";
 import CameraPreview from "@/components/interview/CameraPreview";
 import ProctoringStatus from "@/components/interview/ProctoringStatus";
 import { InterviewConfig } from "@/types/interview";
+import localFont from "next/font/local";
 
+const pixelOperator = localFont({
+    src: "../fonts/PixelOperatorSC.ttf",
+    variable: "--font-pixel-operator",
+});
 export default function ProctoredInterviewPage() {
 
     const [config, setConfig] = useState<InterviewConfig | null>(null);
@@ -35,6 +40,7 @@ export default function ProctoredInterviewPage() {
     // --------------------------------
     // Start camera + microphone
     // --------------------------------
+
 
     const startCameraAndMicrophone = async () => {
         try {
@@ -125,7 +131,7 @@ export default function ProctoredInterviewPage() {
                 }
 
                 const base64 = arrayBufferToBase64(pcm16.buffer);
-                socket.send( 
+                socket.send(
                     JSON.stringify({
                         realtimeInput: {
                             audio: {
@@ -146,7 +152,7 @@ export default function ProctoredInterviewPage() {
     // --------------------------------
     // Start Gemini voice interview
     // --------------------------------
-    const startVoiceInterview = async ( interviewConfig: InterviewConfig ) => {
+    const startVoiceInterview = async (interviewConfig: InterviewConfig) => {
         try {
             setConfig(interviewConfig);
             setStarted(true);
@@ -157,7 +163,7 @@ export default function ProctoredInterviewPage() {
             const token = await getGeminiToken();
 
             console.log("Gemini token received");
-            const socket = new WebSocket( `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained?access_token=${token}` );
+            const socket = new WebSocket(`wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained?access_token=${token}`);
             socketRef.current = socket;
             // --------------------------------
             // WebSocket OPEN
@@ -228,7 +234,7 @@ Speak naturally like a human interviewer.
                             "Gemini setup complete"
                         );
                         setStatus("Gemini ready");
-                        await startMicrophone( mediaStream );
+                        await startMicrophone(mediaStream);
                         return;
                     }
 
@@ -241,7 +247,7 @@ Speak naturally like a human interviewer.
                     // --------------------------------
                     const modelTurn = serverContent.modelTurn;
                     if (modelTurn?.parts) {
-                        for ( const part of modelTurn.parts ) {
+                        for (const part of modelTurn.parts) {
                             if (part.inlineData) {
                                 const audioData = part.inlineData.data;
                                 playGeminiAudio(
@@ -255,7 +261,7 @@ Speak naturally like a human interviewer.
                     // --------------------------------
                     // User transcription
                     // --------------------------------
-                    if ( serverContent.inputTranscription ) {
+                    if (serverContent.inputTranscription) {
                         console.log(
                             "You:",
                             serverContent
@@ -266,7 +272,7 @@ Speak naturally like a human interviewer.
                     // --------------------------------
                     // Gemini transcription
                     // --------------------------------
-                    if ( serverContent.outputTranscription ) {
+                    if (serverContent.outputTranscription) {
                         console.log(
                             "Gemini:",
                             serverContent
@@ -378,30 +384,217 @@ Speak naturally like a human interviewer.
     // Setup UI
     // --------------------------------
 
+    // --------------------------------
+    // Setup UI
+    // --------------------------------
+
     if (!started) {
         return (
-            <main className="min-h-screen bg-gray-950 px-6 py-12 text-white">
-                <div className="mx-auto max-w-4xl">
+            <main
+                className={`${pixelOperator.className} min-h-screen bg-[#e6e4df] p-4 text-[#4d3728] md:p-8`}
+            >
+                {/* Retro Desktop Window */}
+                <section className="relative mx-auto min-h-[calc(100vh-32px)] max-w-[1450px] overflow-hidden rounded-[34px] border-[4px] border-[#62412c] bg-[#f3ead8] shadow-[18px_18px_0_rgba(92,60,40,0.85)]">
 
-                    <header className="mb-10">
-                        <p className="mb-2 text-sm font-semibold tracking-widest text-indigo-400">
-                            AI POWERED INTERVIEW
+                    {/* ================= TOP TEAL SYSTEM BAR ================= */}
+                    <header className="flex h-[58px] items-center justify-between border-b-[4px] border-[#62412c] bg-[#3d98a8] px-6 text-[#3f3026] md:px-8">
+
+                        <p className="text-[13px] tracking-[0.08em] md:text-[18px]">
+                            AI INTERVIEW ASSISTANT
                         </p>
 
-                        <h1 className="text-4xl font-bold tracking-tight">
-                            Proctored Interview
-                        </h1>
+                        <div className="flex items-center gap-4 text-[12px] md:text-[16px]">
+                            <span>▭</span>
+                            <span>⌁</span>
+                            <span>◔</span>
 
-                        <p className="mt-3 text-gray-400">
-                            Voice interview with camera and screen monitoring.
-                        </p>
+                            <span className="hidden md:inline">
+                                PROCTORED MODE
+                            </span>
+
+                            <span className="hidden md:inline">
+                                ● READY
+                            </span>
+                        </div>
                     </header>
 
-                    <InterviewSetup
-                        onStart={startVoiceInterview}
-                    />
+                    {/* ================= MAIN DESKTOP AREA ================= */}
+                    <div className="relative min-h-[calc(100vh-90px)] px-6 pb-36 pt-8 md:px-12 md:pt-12">
 
-                </div>
+                        {/* Decorative folders */}
+                        <div className="absolute right-8 top-8 hidden grid-cols-2 gap-x-10 gap-y-10 md:grid">
+
+                            {[
+                                "CAMERA",
+                                "MIC",
+                                "SCREEN",
+                                "SECURITY",
+                                "SESSION",
+                            ].map((item) => (
+                                <div
+                                    key={item}
+                                    className="flex flex-col items-center gap-2"
+                                >
+                                    <div className="relative h-11 w-16 rounded-[4px] border-2 border-[#765138] bg-[#ffd48c] shadow-[2px_3px_0_rgba(90,60,40,0.18)]">
+                                        <div className="absolute -top-[7px] left-1 h-2 w-6 rounded-t border-2 border-b-0 border-[#765138] bg-[#f5c878]" />
+                                    </div>
+
+                                    <span className="text-[8px] tracking-[0.12em] text-[#7b6858]">
+                                        {item}
+                                    </span>
+                                </div>
+                            ))}
+
+                        </div>
+
+                        {/* ================= PAGE CONTENT ================= */}
+                        <div className="relative z-10 mx-auto flex min-h-[560px] max-w-6xl items-center">
+
+                            <div className="grid w-full gap-12 lg:grid-cols-[0.85fr_1.15fr]">
+
+                                {/* LEFT SIDE */}
+                                <div className="max-w-[500px]">
+
+                                    <p className="text-[11px] tracking-[0.2em] text-[#8b725e]">
+                                    // SECURE INTERVIEW SYSTEM
+                                    </p>
+
+                                    <h1 className="mt-7 text-[48px] leading-[1.1] tracking-[0.06em] text-[#4c3528] sm:text-[62px]">
+                                        FACE TO
+                                        <br />
+                                        FACE._
+                                    </h1>
+
+                                    <p className="mt-7 max-w-[420px] text-[13px] leading-7 tracking-[0.05em] text-[#715d4e]">
+                                        Experience a realistic AI interview with live
+                                        voice interaction, camera monitoring and
+                                        screen sharing.
+                                    </p>
+
+                                    {/* Retro system list */}
+                                    <div className="mt-10 border-l-2 border-[#9b7656] pl-5 text-[11px] leading-8 tracking-[0.1em] text-[#624c3d]">
+                                        <p>[01] CAMERA MONITORING</p>
+                                        <p>[02] LIVE VOICE INTERVIEW</p>
+                                        <p>[03] SCREEN SHARING REQUIRED</p>
+                                    </div>
+
+                                    <p className="mt-10 text-[9px] tracking-[0.16em] text-[#967d68]">
+                                    // PREPARE YOUR CAMERA, MICROPHONE AND SCREEN
+                                    </p>
+
+                                </div>
+
+                                {/* ================= RETRO APP WINDOW ================= */}
+                                <div className="relative self-center">
+
+                                    {/* Window shadow */}
+                                    <div className="absolute inset-0 translate-x-3 translate-y-3 rounded-[18px] bg-[#7b5035]" />
+
+                                    <div className="relative overflow-hidden rounded-[18px] border-[3px] border-[#62412c] bg-[#f6eddc]">
+
+                                        {/* App Title Bar */}
+                                        <div className="flex items-center justify-between border-b-[3px] border-[#62412c] bg-[#d9c3a0] px-5 py-4">
+
+                                            <div className="flex items-center gap-3">
+                                                <span className="h-3 w-3 rounded-full border border-[#62412c] bg-[#e47c6f]" />
+                                                <span className="h-3 w-3 rounded-full border border-[#62412c] bg-[#e9bd68]" />
+                                                <span className="h-3 w-3 rounded-full border border-[#62412c] bg-[#73a77d]" />
+                                            </div>
+
+                                            <p className="text-[11px] tracking-[0.16em] text-[#513b2e]">
+                                                INTERVIEW_SETUP.EXE
+                                            </p>
+
+                                            <span className="text-[16px] text-[#513b2e]">
+                                                □
+                                            </span>
+
+                                        </div>
+
+                                        {/* App Content */}
+                                        <div className="p-5 sm:p-8">
+
+                                            <div className="mb-7 border-b border-[#c9b69b] pb-5">
+
+                                                <p className="text-[10px] tracking-[0.2em] text-[#8a705d]">
+                                                    INTERVIEW CONFIGURATION
+                                                </p>
+
+                                                <p className="mt-3 text-[22px] tracking-[0.08em] text-[#4c3528]">
+                                                    SETUP SESSION._
+                                                </p>
+
+                                            </div>
+
+                                            {/* KEEP YOUR EXISTING COMPONENT */}
+                                            <InterviewSetup
+                                                onStart={startVoiceInterview}
+                                            />
+
+                                        </div>
+
+                                        {/* Bottom status bar */}
+                                        <div className="flex items-center justify-between border-t-[2px] border-[#62412c] bg-[#eadcc4] px-5 py-3 text-[9px] tracking-[0.12em] text-[#70594a]">
+
+                                            <span>STATUS: CONFIGURATION READY</span>
+
+                                            <span>v1.0</span>
+
+                                        </div>
+
+                                    </div>
+
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                        {/* ================= RETRO DESKTOP DOCK ================= */}
+                        <div className="absolute bottom-6 left-1/2 z-20 flex -translate-x-1/2 items-center gap-3 rounded-[16px] border-[3px] border-[#62412c] bg-[#eee0c8] px-4 py-3 shadow-[3px_4px_0_rgba(98,65,44,0.2)]">
+
+                            {/* Mail */}
+                            <div className="flex h-11 w-11 items-center justify-center rounded border-2 border-[#765138] bg-[#ffd38a] text-[20px]">
+                                ✉
+                            </div>
+
+                            {/* Calendar */}
+                            <div className="flex h-11 w-11 items-center justify-center rounded border-2 border-[#765138] bg-[#f3eee3] text-[14px]">
+                                21
+                            </div>
+
+                            {/* Chat */}
+                            <div className="flex h-11 w-11 items-center justify-center rounded border-2 border-[#765138] bg-[#54aa91] text-[20px]">
+                                ●
+                            </div>
+
+                            {/* Audio */}
+                            <div className="flex h-11 w-11 items-center justify-center rounded border-2 border-[#765138] bg-[#ec8c91] text-[20px]">
+                                ♪
+                            </div>
+
+                            {/* Browser */}
+                            <div className="flex h-11 w-11 items-center justify-center rounded border-2 border-[#765138] bg-[#299bad] text-[20px]">
+                                ◎
+                            </div>
+
+                            <div className="mx-1 h-9 w-px bg-[#9c8068]" />
+
+                            {/* Folder */}
+                            <div className="relative h-10 w-14 rounded border-2 border-[#765138] bg-[#ffd17d]">
+                                <div className="absolute -top-[7px] left-1 h-2 w-6 rounded-t border-2 border-b-0 border-[#765138] bg-[#f4c36d]" />
+                            </div>
+
+                            {/* Trash */}
+                            <div className="flex h-11 w-11 items-center justify-center text-[24px] text-[#6a4a35]">
+                                ♜
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </section>
             </main>
         );
     }
@@ -411,82 +604,218 @@ Speak naturally like a human interviewer.
     // --------------------------------
 
     return (
-        <main className="min-h-screen bg-gray-950 px-6 py-8 text-white">
-            <div className="mx-auto max-w-6xl">
+        <main className={`${pixelOperator.className} min-h-screen bg-[#e4e3df] p-3 text-[#25282a] sm:p-5`}>
 
-                <header className="mb-6 flex items-center justify-between">
-                    <div>
-                        <p className="text-sm font-semibold tracking-widest text-indigo-400">
-                            PROCTORED INTERVIEW
-                        </p>
+            <section className="relative min-h-[calc(100vh-24px)] overflow-hidden rounded-[28px] border border-[#cfcec9] bg-[#f0efec] shadow-[0_15px_50px_rgba(40,40,40,0.12)] sm:min-h-[calc(100vh-40px)]">
 
-                        <h1 className="text-3xl font-bold">
-                            AI Interview Assistant
-                        </h1>
+                {/* Background */}
+                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_40%,rgba(255,255,255,0.6),transparent_38%),radial-gradient(circle_at_90%_10%,rgba(210,208,200,0.25),transparent_30%)]" />
 
-                        <p className="mt-1 text-gray-400">
-                            {config?.type} · {config?.subject} · {config?.difficulty}
-                        </p>
-                    </div>
+                <div className="relative z-10 mx-auto max-w-7xl px-6 py-7 md:px-10">
 
-                    <button
-                        onClick={stopInterview}
-                        className="rounded-lg bg-red-600 px-5 py-3 font-semibold hover:bg-red-700"
-                    >
-                        End Interview
-                    </button>
-                </header>
+                    {/* ================= HEADER ================= */}
+                    <header className="flex flex-col justify-between gap-6 border-b border-[#c9c8c3] pb-6 sm:flex-row sm:items-center">
 
-                <div className="grid gap-6 lg:grid-cols-3">
+                        <div className="flex items-center gap-4">
 
-                    {/* Camera */}
+                            <div className="flex h-12 w-12 items-center justify-center border border-[#aaa9a3] bg-[#e7e6e1] text-[19px] shadow-[inset_2px_2px_4px_rgba(255,255,255,0.8),2px_3px_6px_rgba(0,0,0,0.08)]">
+                                &gt;_
+                            </div>
 
-                    <div className="lg:col-span-2">
-                        <CameraPreview
-                            stream={mediaStreamRef.current}
-                        />
-                    </div>
+                            <div>
+                                <p className="text-[9px] tracking-[0.2em] text-[#777872]">
+                                    PROCTORED INTERVIEW
+                                </p>
 
-                    {/* Monitoring */}
+                                <h1 className="mt-1 text-[22px] tracking-[0.12em] text-[#2f3231]">
+                                    AI INTERVIEW ASSISTANT
+                                </h1>
 
-                    <div>
-                        <ProctoringStatus
-                            cameraActive={cameraActive}
-                            microphoneActive={microphoneActive}
-                            screenSharing={screenSharing}
-                            warningCount={warningCount}
-                        />
-
-                        <div className="mt-6 rounded-xl border border-slate-800 bg-gray-900 p-6 text-center">
-
-                            <p className="text-gray-400">
-                                Status
-                            </p>
-
-                            <p className="mt-2 font-semibold">
-                                {status}
-                            </p>
-
-                            {connected && (
-                                <div className="mt-6">
-                                    <div className="text-6xl">
-                                        {listening ? "🎤" : "🔊"}
-                                    </div>
-
-                                    <p className="mt-3 text-gray-300">
-                                        {listening
-                                            ? "Listening..."
-                                            : "AI is speaking..."}
-                                    </p>
-                                </div>
-                            )}
+                                <p className="mt-2 text-[10px] tracking-[0.1em] text-[#696a65]">
+                                    {config?.type} / {config?.subject} / {config?.difficulty}
+                                </p>
+                            </div>
 
                         </div>
+
+                        <button
+                            onClick={stopInterview}
+                            className="border border-[#8d817b] bg-[#d9d4cf] px-6 py-3 text-[11px] tracking-[0.16em] text-[#4b3e39] transition-all duration-200 hover:bg-[#554c47] hover:text-[#f2f0eb] hover:shadow-[4px_5px_0_rgba(0,0,0,0.12)]"
+                        >
+                            [ END SESSION ]
+                        </button>
+
+                    </header>
+
+
+                    {/* ================= SYSTEM STATUS BAR ================= */}
+                    <div className="my-6 grid grid-cols-2 border border-[#c7c6c0] bg-[#e8e7e2] sm:grid-cols-4">
+
+                        <div className="border-b border-[#c7c6c0] p-4 sm:border-b-0 sm:border-r">
+                            <p className="text-[8px] tracking-[0.16em] text-[#858680]">
+                                CONNECTION
+                            </p>
+                            <p className="mt-2 text-[11px] tracking-[0.12em] text-[#373936]">
+                                {connected ? "ONLINE" : "CONNECTING"}
+                            </p>
+                        </div>
+
+                        <div className="border-b border-[#c7c6c0] p-4 sm:border-b-0 sm:border-r">
+                            <p className="text-[8px] tracking-[0.16em] text-[#858680]">
+                                CAMERA
+                            </p>
+                            <p className="mt-2 text-[11px] tracking-[0.12em] text-[#373936]">
+                                {cameraActive ? "ACTIVE" : "OFFLINE"}
+                            </p>
+                        </div>
+
+                        <div className="border-r border-[#c7c6c0] p-4">
+                            <p className="text-[8px] tracking-[0.16em] text-[#858680]">
+                                SCREEN
+                            </p>
+                            <p className="mt-2 text-[11px] tracking-[0.12em] text-[#373936]">
+                                {screenSharing ? "SHARING" : "WAITING"}
+                            </p>
+                        </div>
+
+                        <div className="p-4">
+                            <p className="text-[8px] tracking-[0.16em] text-[#858680]">
+                                WARNINGS
+                            </p>
+                            <p className="mt-2 text-[11px] tracking-[0.12em] text-[#373936]">
+                                {String(warningCount).padStart(2, "0")}
+                            </p>
+                        </div>
+
                     </div>
+
+
+                    {/* ================= MAIN GRID ================= */}
+                    <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
+
+                        {/* ================= CAMERA AREA ================= */}
+                        <div className="relative border border-[#b9b9b4] bg-[#e9e8e3] p-3 shadow-[inset_1px_1px_0_rgba(255,255,255,0.8),0_8px_25px_rgba(0,0,0,0.07)]">
+
+                            <div className="mb-3 flex items-center justify-between border-b border-[#c9c8c3] pb-3">
+
+                                <p className="text-[10px] tracking-[0.18em] text-[#4b4d49]">
+                                    [ CAMERA FEED ]
+                                </p>
+
+                                <div className="flex items-center gap-2">
+                                    <span className={`h-2 w-2 ${cameraActive ? "bg-[#59695a]" : "bg-[#a39a94]"}`} />
+                                    <span className="text-[8px] tracking-[0.15em] text-[#73746e]">
+                                        LIVE
+                                    </span>
+                                </div>
+
+                            </div>
+
+                            <div className="overflow-hidden border border-[#aaa9a3] bg-[#d9d8d2]">
+                                <CameraPreview stream={mediaStreamRef.current} />
+                            </div>
+
+                            <p className="mt-4 text-[8px] tracking-[0.13em] text-[#777872]">
+                            // VIDEO MONITORING ACTIVE. MAINTAIN CAMERA VISIBILITY.
+                            </p>
+
+                        </div>
+
+
+                        {/* ================= RIGHT PANEL ================= */}
+                        <div className="space-y-6">
+
+                            {/* Proctoring */}
+                            <div className="border border-[#b9b9b4] bg-[#e9e8e3]/80 p-5 shadow-[inset_1px_1px_0_rgba(255,255,255,0.8),0_8px_20px_rgba(0,0,0,0.06)]">
+
+                                <div className="mb-5 border-b border-[#c9c8c3] pb-4">
+                                    <p className="text-[10px] tracking-[0.18em] text-[#454744]">
+                                        [ SECURITY MONITOR ]
+                                    </p>
+                                </div>
+
+                                <ProctoringStatus
+                                    cameraActive={cameraActive}
+                                    microphoneActive={microphoneActive}
+                                    screenSharing={screenSharing}
+                                    warningCount={warningCount}
+                                />
+
+                            </div>
+
+
+                            {/* AI Status */}
+                            <div className="border border-[#b9b9b4] bg-[#e7e6e1] p-6 shadow-[inset_1px_1px_0_rgba(255,255,255,0.8)]">
+
+                                <p className="text-[9px] tracking-[0.18em] text-[#777872]">
+                                    AI INTERVIEWER STATUS
+                                </p>
+
+                                <div className="my-5 h-px bg-[#c8c7c1]" />
+
+                                <p className="text-[15px] tracking-[0.08em] text-[#353735]">
+                                    {status}
+                                </p>
+
+                                {connected && (
+                                    <div className="mt-8 border-t border-[#c8c7c1] pt-6">
+
+                                        <div className="flex items-center gap-5">
+
+                                            <div className="flex h-14 w-14 items-center justify-center border border-[#aaa9a3] bg-[#dcdbd5] text-[24px]">
+                                                {listening ? "MIC" : "AI"}
+                                            </div>
+
+                                            <div>
+                                                <p className="text-[9px] tracking-[0.16em] text-[#777872]">
+                                                    LIVE SIGNAL
+                                                </p>
+
+                                                <p className="mt-2 text-[12px] tracking-[0.1em] text-[#393b38]">
+                                                    {listening
+                                                        ? "LISTENING..."
+                                                        : "AI SPEAKING..."}
+                                                </p>
+                                            </div>
+
+                                        </div>
+
+                                        {/* Signal bars */}
+                                        <div className="mt-7 flex h-8 items-center gap-[4px]">
+                                            {[5, 12, 7, 18, 10, 22, 8, 15, 5, 19, 11, 24, 8, 16, 6, 12, 20, 9, 15, 5].map((height, index) => (
+                                                <span
+                                                    key={index}
+                                                    className="w-[2px] bg-[#6d6f69]"
+                                                    style={{ height: `${height}px` }}
+                                                />
+                                            ))}
+                                        </div>
+
+                                    </div>
+                                )}
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+
+                    {/* ================= FOOTER ================= */}
+                    <footer className="mt-8 flex items-center justify-between border-t border-[#c9c8c3] pt-5 text-[8px] tracking-[0.14em] text-[#777872]">
+
+                        <p>// SECURE SESSION IN PROGRESS</p>
+
+                        <p>
+                            {connected ? "SYSTEM: ONLINE" : "SYSTEM: OFFLINE"}
+                        </p>
+
+                    </footer>
 
                 </div>
 
-            </div>
+            </section>
+
         </main>
     );
 }
