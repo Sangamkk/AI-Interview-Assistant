@@ -16,7 +16,7 @@ export default function InterviewModePage() {
             description:
                 "Practice your interview by typing answers and receiving AI-powered responses and feedback.",
             icon: "⌨",
-            href: "/interview/text",
+            href: "/text-practice",
             status: "KEYBOARD READY",
             accent: "#e98c88",
             light: "#f7c5bd",
@@ -28,7 +28,7 @@ export default function InterviewModePage() {
             description:
                 "Speak naturally with the AI interviewer and receive feedback on your answers and delivery.",
             icon: "◉",
-            href: "/interview/voice",
+            href: "/voice-interview",
             status: "MICROPHONE READY",
             accent: "#269c91",
             light: "#8fd3c8",
@@ -40,7 +40,7 @@ export default function InterviewModePage() {
             description:
                 "Experience a realistic interview using your camera, voice, and AI-powered analysis.",
             icon: "◫",
-            href: "/interview/face",
+            href: "/proctored-interview",
             status: "CAMERA READY",
             accent: "#3c99aa",
             light: "#91cdd7",
