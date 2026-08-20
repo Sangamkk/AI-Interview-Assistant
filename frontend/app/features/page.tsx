@@ -2,6 +2,9 @@
 
 import Link from "next/link";
 import localFont from "next/font/local";
+import Header from "@/components/ui/Header";
+import Head from "next/head";
+import SystemBar from "@/components/ui/SystemBar";
 
 const pixelOperator = localFont({
   src: "../fonts/PixelOperatorSC.ttf",
@@ -53,42 +56,9 @@ export default function FeaturesPage() {
         {/* Background */}
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_30%,rgba(255,255,255,0.65),transparent_30%),radial-gradient(circle_at_15%_80%,rgba(244,201,125,0.12),transparent_28%)]" />
 
+        <SystemBar/>
         {/* HEADER */}
-        <header className="relative z-10 flex items-center justify-between px-8 py-7 md:px-14 md:py-10">
-          <Link href="/" className="flex items-center gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-md border-2 border-[#684932] bg-[#f4c97d] text-[20px] shadow-[3px_3px_0_rgba(104,73,50,0.2)]">
-              &gt;_
-            </div>
-
-            <div>
-              <h1 className="text-[16px] tracking-[0.18em]">
-                AI INTERVIEW ASSISTANT
-              </h1>
-
-              <p className="mt-1 text-[9px] tracking-[0.18em] text-[#806754]">
-                SYSTEM FEATURES
-              </p>
-            </div>
-          </Link>
-
-          <nav className="hidden items-center gap-8 text-[11px] tracking-[0.14em] md:flex">
-            <Link href="/" className="text-[#765f4d] hover:text-[#3e2d23]">
-              HOME
-            </Link>
-
-            <span className="border-b-2 border-[#60432f] pb-1 text-[#473226]">
-              FEATURES
-            </span>
-
-            <Link href="/about" className="text-[#765f4d] hover:text-[#3e2d23]">
-              ABOUT
-            </Link>
-
-            <Link href="/contact" className="text-[#765f4d] hover:text-[#3e2d23]">
-              CONTACT
-            </Link>
-          </nav>
-        </header>
+        <Header/>
 
         {/* CONTENT */}
         <div className="relative z-10 px-8 pb-20 pt-8 md:px-14">

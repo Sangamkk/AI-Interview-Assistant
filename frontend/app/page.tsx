@@ -8,6 +8,9 @@ import localFont from "next/font/local";
 import Footer from "@/components/ui/Footer";
 import Header from "@/components/ui/Header";
 import SystemBar from "@/components/ui/SystemBar";
+import { useSystem } from "@/app/context/SystemContext";
+import HelpGuide from "@/components/ui/HelpGuide";
+import SystemInfo from "@/components/ui/SystemInfo";
 
 const pixelOperator = localFont({
   src: "./fonts/PixelOperatorSC.ttf",
@@ -19,6 +22,7 @@ export default function Home() {
   const [cardPosition, setCardPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const router = useRouter();
+  const { theme } = useSystem();
 
   const dragStart = useRef({
     mouseX: 0,
@@ -61,18 +65,89 @@ export default function Home() {
   const handleMouseUp = () => {
     setIsDragging(false);
   };
+
+  const colors =
+    theme === "dark"
+      ? {
+        main: "bg-[#1b1917] text-[#f3ead9]",
+        window: "border-[#6f5a49] bg-[#25211e]",
+        heading: "text-[#f3ead9]",
+        muted: "text-[#c5aa91]",
+        paragraph: "text-[#d7c5b4]",
+        card: "border-[#806651] bg-[#302a25]",
+        cardHeader: "border-[#806651] bg-[#39312b]",
+        cardText: "text-[#f3ead9]",
+        cardMuted: "text-[#c5aa91]",
+        inputBorder: "border-[#a07d60]",
+        inputText: "text-[#f3ead9]",
+        placeholder: "text-[#9f8874]",
+        cursor: "bg-[#f3c48b]",
+        status: "border-[#806651] bg-[#39312b]",
+        shadow: "shadow-[18px_20px_0_rgba(0,0,0,0.5)]",
+        imageBlend:
+          "bg-[radial-gradient(ellipse_at_center,transparent_45%,rgba(37,33,30,0.1)_62%,rgba(37,33,30,0.68)_84%,#25211e_100%)]",
+      }
+      : theme === "light"
+        ? {
+          main: "bg-[#f7f3eb] text-[#3f3025]",
+          window: "border-[#a98e76] bg-[#fffaf2]",
+          heading: "text-[#382b22]",
+          muted: "text-[#806754]",
+          paragraph: "text-[#66564a]",
+          card: "border-[#b89e86] bg-[#fff8ed]",
+          cardHeader: "border-[#d2baa2] bg-[#fff1df]",
+          cardText: "text-[#382b22]",
+          cardMuted: "text-[#806754]",
+          inputBorder: "border-[#765844]",
+          inputText: "text-[#382b22]",
+          placeholder: "text-[#aa9480]",
+          cursor: "bg-[#684932]",
+          status: "border-[#d2baa2] bg-[#fff1df]",
+          shadow: "shadow-[18px_20px_0_rgba(110,80,55,0.25)]",
+          imageBlend:
+            "bg-[radial-gradient(ellipse_at_center,transparent_45%,rgba(255,250,242,0.1)_62%,rgba(255,250,242,0.68)_84%,#fffaf2_100%)]",
+        }
+        : {
+          main: "bg-[#d8d8d4] text-[#3f3025]",
+          window: "border-[#62452f] bg-[#efe8d8]",
+          heading: "text-[#493529]",
+          muted: "text-[#806754]",
+          paragraph: "text-[#725e4d]",
+          card: "border-[#684932] bg-[#f3ead9]/75",
+          cardHeader: "border-[#b49a7f] bg-[#f7eddb]",
+          cardText: "text-[#4a362a]",
+          cardMuted: "text-[#806754]",
+          inputBorder: "border-[#513b2c]",
+          inputText: "text-[#4a362a]",
+          placeholder: "text-[#a48d7c]",
+          cursor: "bg-[#513b2c]",
+          status: "border-[#b49a7f] bg-[#f7eddb]",
+          shadow: "shadow-[18px_20px_0_rgba(91,61,37,0.85)]",
+          imageBlend:
+            "bg-[radial-gradient(ellipse_at_center,transparent_45%,rgba(239,232,216,0.1)_62%,rgba(239,232,216,0.68)_84%,#efe8d8_100%)]",
+        };
   return (
     <main
-      className={`${pixelOperator.className} min-h-screen bg-[#d8d8d4] p-4 text-[#3f3025] sm:p-6`}
+      className={`${pixelOperator.className} min-h-screen p-4 transition-colors duration-500 sm:p-6 ${colors.main}`}
     >
       {/* ================= MAIN RETRO WINDOW ================= */}
-      <section id="#home" className="relative min-h-[calc(100vh-32px)] overflow-hidden rounded-[28px] border-[4px] border-[#62452f] bg-[#efe8d8] shadow-[18px_20px_0_rgba(91,61,37,0.85)] sm:min-h-[calc(100vh-48px)]">
-
+      <section
+        id="home"
+        className={`relative min-h-[calc(100vh-32px)] overflow-hidden rounded-[28px] border-[4px] transition-colors duration-500 ${colors.window} ${colors.shadow} sm:min-h-[calc(100vh-48px)]`}
+      >
         {/* ================= TOP SYSTEM BAR ================= */}
-        <SystemBar/>
+        <SystemBar />
+
+        <HelpGuide />
+        <SystemInfo />
 
         {/* ================= BACKGROUND ================= */}
-        <div className="pointer-events-none absolute inset-0 top-14 bg-[radial-gradient(circle_at_50%_40%,rgba(255,255,255,0.55),transparent_35%),radial-gradient(circle_at_15%_20%,rgba(255,255,255,0.35),transparent_25%)]" />
+        <div
+          className={`pointer-events-none absolute inset-0 top-14 transition-opacity duration-500 ${theme === "dark"
+            ? "bg-[radial-gradient(circle_at_50%_40%,rgba(255,220,180,0.08),transparent_35%),radial-gradient(circle_at_15%_20%,rgba(255,255,255,0.04),transparent_25%)]"
+            : "bg-[radial-gradient(circle_at_50%_40%,rgba(255,255,255,0.55),transparent_35%),radial-gradient(circle_at_15%_20%,rgba(255,255,255,0.35),transparent_25%)]"
+            }`}
+        />
 
         {/* ================= HEADER ================= */}
         <Header />
@@ -83,11 +158,11 @@ export default function Home() {
           {/* ================= LEFT SIDE ================= */}
           <div className="flex flex-col justify-center">
 
-            <p className="mb-7 text-[11px] tracking-[0.18em] text-[#806754]">
-              // WELCOME USER
+            <p className={`mb-7 text-[11px] tracking-[0.18em] transition-colors duration-500 ${colors.muted}`}>
+          // WELCOME USER
             </p>
 
-            <h2 className="text-[48px] leading-[1.28] tracking-[0.06em] text-[#493529] sm:text-[56px] lg:text-[62px]">
+            <h2 className={`text-[48px] leading-[1.28] tracking-[0.06em] transition-colors duration-500 sm:text-[56px] lg:text-[62px] ${colors.heading}`}>
               PRACTICE
               <br />
               SMARTER.
@@ -99,7 +174,7 @@ export default function Home() {
               NEXT ONE._
             </h2>
 
-            <p className="mt-8 max-w-[430px] text-[14px] leading-7 tracking-[0.04em] text-[#725e4d]">
+            <p className={`mt-8 max-w-[430px] text-[14px] leading-7 tracking-[0.04em] transition-colors duration-500 ${colors.paragraph}`}>
               AI-powered mock interviews with real-time feedback to help you
               improve your answers and confidence.
             </p>
@@ -123,7 +198,6 @@ export default function Home() {
                 </span>
               </button>
 
-
               {/* VOICE TO VOICE */}
               <button
                 onClick={() => router.push("/voice-interview")}
@@ -139,7 +213,6 @@ export default function Home() {
                   INTERVIEW
                 </span>
               </button>
-
 
               {/* FACE TO FACE */}
               <button
@@ -166,38 +239,43 @@ export default function Home() {
             <div className="relative w-full max-w-[500px]">
 
               {/* AMBIENT SHADOW */}
-              <div className="pointer-events-none absolute bottom-[9%] left-1/2 h-16 w-[72%] -translate-x-1/2 rounded-full bg-[#684932]/20 blur-2xl" />
+              <div
+                className={`pointer-events-none absolute bottom-[9%] left-1/2 h-16 w-[72%] -translate-x-1/2 rounded-full blur-2xl ${theme === "dark"
+                  ? "bg-[#000]/40"
+                  : "bg-[#684932]/20"
+                  }`}
+              />
 
               <div className="relative z-10 flex justify-center overflow-hidden">
 
-                <Image src="/LandingPage.jpeg"
+                <Image
+                  src="/LandingPage.jpeg"
                   alt="Retro AI Interview Assistant Computer"
                   width={607}
                   height={677}
                   priority
-                  className="
-                    h-auto
-                    w-full
-                    max-w-[440px]
-                    object-contain
-                    brightness-[1.01]
-                    contrast-[0.97]
-                  "
+                  className={`
+                h-auto
+                w-full
+                max-w-[440px]
+                object-contain
+                transition-all
+                duration-500
+                ${theme === "dark"
+                      ? "brightness-[0.88] contrast-[1.08] saturate-[0.9]"
+                      : "brightness-[1.01] contrast-[0.97]"
+                    }
+              `}
                 />
 
                 {/* IMAGE BLENDING */}
                 <div
-                  className="
-                    pointer-events-none
-                    absolute
-                    inset-0
-                    bg-[radial-gradient(ellipse_at_center,transparent_45%,rgba(239,232,216,0.1)_62%,rgba(239,232,216,0.68)_84%,#efe8d8_100%)]
-                  "
+                  className={`pointer-events-none absolute inset-0 transition-colors duration-500 ${colors.imageBlend}`}
                 />
               </div>
             </div>
 
-            <p className="mt-2 text-[10px] tracking-[0.15em] text-[#806754]">
+            <p className={`mt-2 text-[10px] tracking-[0.15em] transition-colors duration-500 ${colors.muted}`}>
               SWITCH DAY 'N' NIGHT
             </p>
           </div>
@@ -216,28 +294,28 @@ export default function Home() {
                 transform: `translate(${cardPosition.x}px, ${cardPosition.y}px)`,
               }}
               className={`
-      relative
-      w-full
-      max-w-[400px]
-      select-none
-      overflow-hidden
-      rounded-lg
-      border-2
-      border-[#684932]
-      bg-[#f3ead9]/75
-      shadow-[4px_4px_0_rgba(104,73,50,0.12)]
-      transition-transform
-      ${isDragging ? "cursor-grabbing transition-none" : "cursor-grab"}
-    `}
+            relative
+            w-full
+            max-w-[400px]
+            select-none
+            overflow-hidden
+            rounded-lg
+            border-2
+            shadow-[4px_4px_0_rgba(104,73,50,0.12)]
+            transition-colors
+            duration-500
+            ${colors.card}
+            ${isDragging ? "cursor-grabbing transition-none" : "cursor-grab"}
+          `}
             >
               {/* TERMINAL HEADER */}
-              <div className="flex items-center justify-between border-b-2 border-[#b49a7f] bg-[#f7eddb] px-5 py-4">
-                <span className="text-[10px] tracking-[0.16em] text-[#5c4331]">
+              <div className={`flex items-center justify-between border-b-2 px-5 py-4 transition-colors duration-500 ${colors.cardHeader}`}>
+                <span className={`text-[10px] tracking-[0.16em] ${colors.cardText}`}>
                   INTERVIEW SESSION
                 </span>
 
                 <div className="flex items-center gap-2">
-                  <span className="text-[9px] tracking-[0.12em] text-[#745d4a]">
+                  <span className={`text-[9px] tracking-[0.12em] ${colors.cardMuted}`}>
                     00:00:00
                   </span>
 
@@ -247,17 +325,18 @@ export default function Home() {
 
               {/* TERMINAL CONTENT */}
               <div className="min-h-[270px] px-5 py-7">
-                <p className="text-[10px] tracking-[0.15em] text-[#806754]">
+
+                <p className={`text-[10px] tracking-[0.15em] ${colors.cardMuted}`}>
                   AI INTERVIEWER:
                 </p>
 
-                <p className="mt-4 text-[15px] leading-7 tracking-[0.04em] text-[#4a362a]">
+                <p className={`mt-4 text-[15px] leading-7 tracking-[0.04em] transition-colors duration-500 ${colors.cardText}`}>
                   Tell me about a challenging
                   <br />
                   project you worked on.
                 </p>
 
-                <p className="mt-7 text-[10px] tracking-[0.15em] text-[#806754]">
+                <p className={`mt-7 text-[10px] tracking-[0.15em] ${colors.cardMuted}`}>
                   YOU:
                 </p>
 
@@ -265,19 +344,25 @@ export default function Home() {
                 <div className="relative mt-3 min-h-[85px] w-full">
 
                   {/* DISPLAY LAYER */}
-                  <div className="pointer-events-none absolute inset-0 min-h-[85px] whitespace-pre-wrap break-words border-l-[3px] border-[#513b2c] px-3 py-2 text-[13px] leading-6 tracking-[0.04em] text-[#4a362a]">
+                  <div
+                    className={`pointer-events-none absolute inset-0 min-h-[85px] whitespace-pre-wrap break-words border-l-[3px] px-3 py-2 text-[13px] leading-6 tracking-[0.04em] transition-colors duration-500 ${colors.inputBorder} ${colors.inputText}`}
+                  >
                     {answer ? (
                       <>
                         {answer}
-                        <span className="ml-[2px] inline-block h-[18px] w-[3px] translate-y-[3px] animate-pulse bg-[#513b2c]" />
+                        <span
+                          className={`ml-[2px] inline-block h-[18px] w-[3px] translate-y-[3px] animate-pulse ${colors.cursor}`}
+                        />
                       </>
                     ) : (
                       <>
-                        <span className="text-[#a48d7c]">
+                        <span className={colors.placeholder}>
                           Type your answer here...
                         </span>
 
-                        <span className="ml-[3px] inline-block h-[18px] w-[3px] translate-y-[3px] animate-pulse bg-[#513b2c]" />
+                        <span
+                          className={`ml-[3px] inline-block h-[18px] w-[3px] translate-y-[3px] animate-pulse ${colors.cursor}`}
+                        />
                       </>
                     )}
                   </div>
@@ -290,24 +375,24 @@ export default function Home() {
                     onChange={(e) => setAnswer(e.target.value)}
                     onMouseDown={(e) => e.stopPropagation()}
                     className="
-            relative
-            z-10
-            min-h-[85px]
-            w-full
-            resize-none
-            border-l-[3px]
-            border-transparent
-            bg-transparent
-            px-3
-            py-2
-            text-[13px]
-            leading-6
-            tracking-[0.04em]
-            text-transparent
-            caret-transparent
-            outline-none
-            cursor-text
-          "
+                  relative
+                  z-10
+                  min-h-[85px]
+                  w-full
+                  resize-none
+                  border-l-[3px]
+                  border-transparent
+                  bg-transparent
+                  px-3
+                  py-2
+                  text-[13px]
+                  leading-6
+                  tracking-[0.04em]
+                  text-transparent
+                  caret-transparent
+                  outline-none
+                  cursor-text
+                "
                   />
                 </div>
 
@@ -330,8 +415,8 @@ export default function Home() {
               </div>
 
               {/* TERMINAL STATUS */}
-              <div className="border-t-2 border-[#b49a7f] bg-[#f7eddb] px-5 py-4">
-                <p className="text-[9px] tracking-[0.14em] text-[#715a47]">
+              <div className={`border-t-2 px-5 py-4 transition-colors duration-500 ${colors.status}`}>
+                <p className={`text-[9px] tracking-[0.14em] ${colors.cardMuted}`}>
                   STATUS: READY WHEN YOU ARE.
                 </p>
               </div>
@@ -341,7 +426,6 @@ export default function Home() {
 
         {/* ================= BOTTOM RETRO DOCK ================= */}
         <Footer />
-
       </section>
     </main>
   );

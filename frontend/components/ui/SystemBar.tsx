@@ -1,104 +1,83 @@
 "use client";
 
-import { useState } from "react";
+import { useSystem } from "@/app/context/SystemContext";
 
 export default function SystemBar() {
-  const [theme, setTheme] = useState("DEFAULT");
-  const [sound, setSound] = useState("MED");
+  const {
+    theme,
+    setTheme,
+    soundEnabled,
+    setSoundEnabled,
+    setHelpOpen,
+    setSystemInfoOpen,
+  } = useSystem();
 
-  const cycleTheme = () => {
-    const themes = ["DEFAULT", "LIGHT", "DARK"];
-    const currentIndex = themes.indexOf(theme);
+  /* ================= THEME ================= */
+  const toggleTheme = () => {
+    const nextTheme =
+      theme === "default"
+        ? "light"
+        : theme === "light"
+        ? "dark"
+        : "default";
 
-    setTheme(themes[(currentIndex + 1) % themes.length]);
+    setTheme(nextTheme);
   };
 
-  const cycleSound = () => {
-    const levels = ["MUTE", "LOW", "MED", "HIGH"];
-    const currentIndex = levels.indexOf(sound);
-
-    setSound(levels[(currentIndex + 1) % levels.length]);
-  };
-
-  const handleSearch = () => {
-    document
-      .getElementById("features")
-      ?.scrollIntoView({ behavior: "smooth" });
-  };
-
-  const showSystemInfo = () => {
-    alert(
-      `AI INTERVIEW ASSISTANT SYSTEM
-VERSION: 1.0
-THEME: ${theme}
-SOUND: ${sound}
-STATUS: ONLINE`
-    );
-  };
+  const systemLabel =
+    theme === "default"
+      ? "SYS 21"
+      : theme === "light"
+      ? "SYS LIGHT"
+      : "SYS DARK";
 
   return (
-    <div className="relative z-20 flex h-14 items-center justify-between border-b-[4px] border-[#62452f] bg-[#3c9aaa] px-6 text-[#30261f] sm:px-10">
+    <div className="relative z-50 flex h-14 items-center justify-between border-b-[4px] border-[#62452f] bg-[#3c9aaa] px-6 text-[#30261f] sm:px-10">
 
       {/* SYSTEM NAME */}
-      <div className="flex items-center gap-3">
-        <span className="h-3 w-3 animate-pulse rounded-full border border-[#30261f] bg-[#f4c97d]" />
+      <p className="text-[14px] tracking-[0.08em] sm:text-[17px]">
+        AI INTERVIEW ASSISTANT SYSTEM
+      </p>
 
-        <p className="text-[14px] tracking-[0.08em] sm:text-[17px]">
-          AI INTERVIEW ASSISTANT SYSTEM
-        </p>
-      </div>
+      {/* CONTROLS */}
+      <div className="flex items-center gap-4 text-[13px] sm:gap-5">
 
-      {/* SYSTEM CONTROLS */}
-      <div className="hidden items-center gap-2 text-[13px] sm:flex">
-
-        {/* THEME SWITCHER */}
+        {/* THEME */}
         <button
-          onClick={cycleTheme}
+          onClick={toggleTheme}
           title={`Theme: ${theme}`}
-          className="flex h-9 items-center gap-2 border-2 border-[#62452f] bg-[#efe2ca] px-3 transition hover:-translate-y-[2px] hover:bg-[#f4c97d] active:translate-y-0"
+          className="flex h-7 w-7 items-center justify-center cursor-pointer transition-all duration-300 hover:scale-110 hover:rotate-12 active:scale-90"
         >
-          <span className="text-[16px]">◧</span>
-
-          <span className="text-[9px] tracking-[0.1em]">
-            {theme}
-          </span>
+          ◧
         </button>
 
-        {/* SOUND CONTROL */}
+        {/* SOUND */}
         <button
-          onClick={cycleSound}
-          title={`Sound: ${sound}`}
-          className="flex h-9 items-center gap-2 border-2 border-[#62452f] bg-[#efe2ca] px-3 transition hover:-translate-y-[2px] hover:bg-[#f4c97d] active:translate-y-0"
+          onClick={() => setSoundEnabled(!soundEnabled)}
+          title={soundEnabled ? "Sound: ON" : "Sound: OFF"}
+          className={`flex h-7 w-7 items-center justify-center cursor-pointer transition-all duration-300 hover:scale-110 active:scale-90 ${
+            soundEnabled ? "animate-pulse opacity-100" : "opacity-40"
+          }`}
         >
-          <span
-            className={`text-[17px] ${
-              sound !== "MUTE" ? "animate-pulse" : ""
-            }`}
-          >
-            ⌁
-          </span>
-
-          <span className="text-[9px] tracking-[0.1em]">
-            {sound}
-          </span>
+          ⌁
         </button>
 
-        {/* QUICK NAVIGATION */}
+        {/* HELP */}
         <button
-          onClick={handleSearch}
-          title="Quick Navigation"
-          className="flex h-9 w-10 items-center justify-center border-2 border-[#62452f] bg-[#efe2ca] text-[18px] transition hover:-translate-y-[2px] hover:bg-[#f4c97d] active:translate-y-0"
+          onClick={() => setHelpOpen(true)}
+          title="Help & Guide"
+          className="flex h-7 w-7 items-center justify-center cursor-pointer transition-all duration-300 hover:rotate-12 hover:scale-110 active:scale-90"
         >
           ⌕
         </button>
 
         {/* SYSTEM INFO */}
         <button
-          onClick={showSystemInfo}
+          onClick={() => setSystemInfoOpen(true)}
           title="System Information"
-          className="ml-2 border-l-2 border-[#62452f] pl-4 text-[10px] tracking-[0.12em] transition hover:text-[#efe2ca]"
+          className="hidden cursor-pointer border-l-2 border-[#62452f]/40 pl-4 tracking-[0.08em] transition-all duration-200 hover:scale-105 sm:inline"
         >
-          SYS 21
+          {systemLabel}
         </button>
 
       </div>

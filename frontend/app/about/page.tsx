@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import localFont from "next/font/local";
+import Header from "@/components/ui/Header";
+import SystemBar from "@/components/ui/SystemBar";
 
 const pixelOperator = localFont({
   src: "../fonts/PixelOperatorSC.ttf",
@@ -14,46 +16,13 @@ export default function AboutPage() {
       className={`${pixelOperator.className} min-h-screen bg-[#efe8d8] p-3 text-[#473226] sm:p-5`}
     >
       <section className="relative min-h-[calc(100vh-24px)] overflow-hidden rounded-[28px] border-2 border-[#b49a7f] bg-[#f7f0e2] shadow-[8px_8px_0_rgba(104,73,50,0.12)]">
-        
+        <SystemBar/>
         {/* Background */}
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_70%_25%,rgba(57,163,142,0.1),transparent_28%),radial-gradient(circle_at_20%_75%,rgba(244,201,125,0.14),transparent_30%)]" />
 
+        
         {/* HEADER */}
-        <header className="relative z-10 flex items-center justify-between px-8 py-7 md:px-14 md:py-10">
-          <Link href="/" className="flex items-center gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-md border-2 border-[#684932] bg-[#f4c97d] text-[20px]">
-              &gt;_
-            </div>
-
-            <div>
-              <h1 className="text-[16px] tracking-[0.18em]">
-                AI INTERVIEW ASSISTANT
-              </h1>
-
-              <p className="mt-1 text-[9px] tracking-[0.18em] text-[#806754]">
-                ABOUT THE SYSTEM
-              </p>
-            </div>
-          </Link>
-
-          <nav className="hidden items-center gap-8 text-[11px] tracking-[0.14em] md:flex">
-            <Link href="/" className="text-[#765f4d] hover:text-[#3e2d23]">
-              HOME
-            </Link>
-
-            <Link href="/features" className="text-[#765f4d] hover:text-[#3e2d23]">
-              FEATURES
-            </Link>
-
-            <span className="border-b-2 border-[#60432f] pb-1 text-[#473226]">
-              ABOUT
-            </span>
-
-            <Link href="/contact" className="text-[#765f4d] hover:text-[#3e2d23]">
-              CONTACT
-            </Link>
-          </nav>
-        </header>
+        <Header/>
 
         {/* CONTENT */}
         <div className="relative z-10 grid gap-16 px-8 py-12 md:grid-cols-[1.1fr_0.9fr] md:px-14 lg:py-20">
