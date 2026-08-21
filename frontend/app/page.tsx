@@ -249,7 +249,7 @@ export default function Home() {
               <div className="relative z-10 flex justify-center overflow-hidden">
 
                 <Image
-                  src="/LandingPage.jpeg"
+                  src="/image.png"
                   alt="Retro AI Interview Assistant Computer"
                   width={607}
                   height={677}
@@ -266,11 +266,6 @@ export default function Home() {
                       : "brightness-[1.01] contrast-[0.97]"
                     }
               `}
-                />
-
-                {/* IMAGE BLENDING */}
-                <div
-                  className={`pointer-events-none absolute inset-0 transition-colors duration-500 ${colors.imageBlend}`}
                 />
               </div>
             </div>

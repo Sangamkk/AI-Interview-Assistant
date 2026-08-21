@@ -6,7 +6,8 @@ import { arrayBufferToBase64, playGeminiAudio } from "@/lib/audio";
 import localFont from "next/font/local";
 import Image from "next/image";
 import SystemBar from "@/components/ui/SystemBar";
-
+import InterviewSetup from "@/components/interview/InterviewSetup";
+import { InterviewConfig } from "@/types/interview";
 
 const pixelOperator = localFont({
     src: "../fonts/PixelOperatorSC.ttf",
@@ -27,6 +28,13 @@ export default function VoiceInterviewPage() {
     const playbackContextRef = useRef<AudioContext | null>(null);//gemini response
     const nextAudioTimeRef = useRef(0);//next Gemini audio chunk
 
+    const [started, setStarted] = useState(false);
+    const [config, setConfig] = useState<InterviewConfig | null>(null);
+
+    const handleStartSetup = (interviewConfig: InterviewConfig) => {
+        setConfig(interviewConfig);
+        setStarted(true);
+    };
     // --------------------------------
     // Start microphone
     // --------------------------------
@@ -115,186 +123,175 @@ export default function VoiceInterviewPage() {
     // --------------------------------
     // Start voice interview
     // --------------------------------
+    
     const startVoiceInterview = async () => {
         try {
-            setStatus("Getting Gemini session...");
-            // Get temporary token
-            const token = await getGeminiToken();
-            console.log("Gemini token received");
-            // Create WebSocket
-            const socket = new WebSocket(`wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained?access_token=${token}`);
+            setStatus("Connecting to interview server...");
+            // ============================================
+            // CONNECT TO YOUR SPRING BOOT BACKEND
+            // ============================================
+            const socket = new WebSocket( "ws://localhost:8080/ws/voice-interview" );
             socketRef.current = socket;
-            // --------------------------------
-            // WebSocket OPEN
-            // --------------------------------
+            // ============================================
+            // BACKEND WEBSOCKET CONNECTED
+            // ============================================
             socket.onopen = () => {
-                console.log("Connected to Gemini Live");
+                console.log("Connected to backend");
                 setConnected(true);
-                setStatus("Connecting to Gemini...");
-                // Gemini setup message
+                setStatus("Starting Gemini session...");
+                // Send interview configuration to backend
+                // Backend will create the Gemini connection
                 const setupMessage = {
-                    setup: {
-                        model: "models/gemini-3.1-flash-live-preview",
-                        generationConfig: { responseModalities: ["AUDIO"] },
-                        systemInstruction: {
-                            parts: [{
-                                text: `
-                                            You are a professional technical interviewer.
-                                            Conduct a realistic hr interview.
-                                            Start by greeting the candidate
-                                            and asking the first question.
-                                            Ask only one question at a time.
-                                            Wait for the candidate's answer.
-                                            Listen carefully to the answer.
-                                            Evaluate the answer internally.
-                                            Then ask a relevant follow-up question.
-                                            The interview topic is specified by user.
-                                            The difficulty level is hard.
-                                            Keep your responses concise and conversational.
-                                            Speak naturally like a human interviewer.`
-                            }
-                            ]
-                        }
-                    }
+                    type: "SETUP",
+                    subject: "HR Interview",
+                    difficulty: "hard"
                 };
                 socket.send(JSON.stringify(setupMessage));
-                console.log("Gemini setup sent");
+                console.log("Interview setup sent to backend");
             };
-            // --------------------------------
-            // Messages from Gemini
-            // --------------------------------
+            // ============================================
+            // MESSAGES FROM BACKEND
+            // ============================================
             socket.onmessage = async (event) => {
                 try {
                     let messageText: string;
-                    // Gemini response arrived as Blob
                     if (event.data instanceof Blob) {
                         messageText = await event.data.text();
-                    }
-                    // Gemini response arrived as normal text
-                    else if (
-                        typeof event.data === "string"
-                    ) {
+                    } else if (typeof event.data === "string") {
                         messageText = event.data;
-                    }
-                    else {
+                    } else {
                         console.log(
-                            "Unknown Gemini message:",
+                            "Unknown backend message:",
                             event.data
                         );
                         return;
                     }
                     console.log(
-                        "Gemini raw message:",
+                        "Backend message:",
                         messageText
                     );
                     const data = JSON.parse(messageText);
-                    console.log(
-                        "Gemini JSON:",
-                        data
-                    );
-                    // --------------------------------
-                    // Setup completed
-                    // --------------------------------
-                    if (data.setupComplete) {
+                    // ========================================
+                    // GEMINI SESSION READY
+                    // Backend tells frontend Gemini is ready
+                    // ========================================
+                    if (data.type === "READY") {
                         console.log(
-                            "Gemini setup complete"
+                            "Gemini session ready"
                         );
                         setStatus("Gemini ready");
-                        // NOW request microphone permission
+                        // Start microphone only after backend
+                        // successfully connects to Gemini
                         await startMicrophone();
                         return;
                     }
-                    // --------------------------------
-                    // Server content
-                    // --------------------------------
-                    const serverContent = data.serverContent;
-                    if (!serverContent) {
+                    // ========================================
+                    // GEMINI AUDIO
+                    // Backend forwards Gemini audio here
+                    // ========================================
+                    if (data.type === "AUDIO") {
+                        console.log(
+                            "Gemini audio received from backend"
+                        );
+
+                        playGeminiAudio(
+                            data.audio,
+                            playbackContextRef,
+                            nextAudioTimeRef
+                        );
+
                         return;
                     }
-                    // --------------------------------
-                    // Gemini audio response
-                    // --------------------------------
-                    const modelTurn = serverContent.modelTurn;
-                    if (modelTurn?.parts) {
-                        for (const part of modelTurn.parts) {
-                            if (part.inlineData) {
-                                const audioData = part.inlineData.data;
-                                console.log(
-                                    "Gemini audio received"
-                                );
-                                playGeminiAudio(audioData, playbackContextRef, nextAudioTimeRef);
-                            }
-                        }
-                    }
-                    // --------------------------------
-                    // User transcription
-                    // --------------------------------
-                    if (serverContent.inputTranscription) {
+
+                    // ========================================
+                    // USER TRANSCRIPTION
+                    // ========================================
+                    if (data.type === "USER_TRANSCRIPTION") {
                         console.log(
                             "You:",
-                            serverContent
-                                .inputTranscription
-                                .text
+                            data.text
                         );
+
+                        return;
                     }
-                    // --------------------------------
-                    // Gemini transcription
-                    // --------------------------------
-                    if (
-                        serverContent.outputTranscription
-                    ) {
+
+                    // ========================================
+                    // GEMINI TRANSCRIPTION
+                    // ========================================
+                    if (data.type === "AI_TRANSCRIPTION") {
                         console.log(
                             "Gemini:",
-                            serverContent
-                                .outputTranscription
-                                .text
+                            data.text
                         );
+
+                        return;
                     }
+
+                    // ========================================
+                    // ERROR FROM BACKEND
+                    // ========================================
+                    if (data.type === "ERROR") {
+                        console.error(
+                            "Backend error:",
+                            data.message
+                        );
+
+                        setStatus(data.message);
+                    }
+
                 } catch (error) {
                     console.error(
-                        "Gemini message error:",
+                        "Backend message error:",
                         error
                     );
                 }
             };
-            // --------------------------------
-            // WebSocket error
-            // --------------------------------
+
+            // ============================================
+            // WEBSOCKET ERROR
+            // ============================================
             socket.onerror = (error) => {
                 console.error(
-                    "Gemini WebSocket error:",
+                    "Backend WebSocket error:",
                     error
                 );
-                setStatus("Gemini connection error");
+
+                setStatus("Backend connection error");
             };
-            // --------------------------------
-            // WebSocket closed
-            // --------------------------------
+
+            // ============================================
+            // WEBSOCKET CLOSED
+            // ============================================
             socket.onclose = (event) => {
                 console.log(
-                    "Gemini connection closed"
+                    "Backend connection closed"
                 );
+
                 console.log(
                     "Close code:",
                     event.code
                 );
+
                 console.log(
                     "Close reason:",
                     event.reason
                 );
+
                 stopMicrophone();
+
                 setConnected(false);
                 setListening(false);
+
                 setStatus("Disconnected");
             };
+
         } catch (error) {
             console.error(
                 "Voice interview error:",
                 error
             );
-            setStatus(
-                "Failed to connect"
-            );
+
+            setStatus("Failed to connect");
         }
     };
 
@@ -322,7 +319,6 @@ export default function VoiceInterviewPage() {
     // --------------------------------
 
     const [demoSpeaker, setDemoSpeaker] = useState<"ai" | "user">("ai");
-
     const [waveLevels, setWaveLevels] = useState<number[]>(
         Array.from({ length: 32 }, () => 15)
     );
@@ -372,6 +368,70 @@ export default function VoiceInterviewPage() {
 
         return () => clearInterval(waveInterval);
     }, [connected, demoSpeaker]);
+
+    if (!started) {
+        return (
+            <main
+                className={`${pixelOperator.className} min-h-screen bg-[#d8d8d4] p-3 text-[#3f3025] sm:p-5`}
+            >
+                <section className="min-h-[calc(100vh-24px)] overflow-hidden rounded-[24px] border-2 border-[#bda98f] bg-[#efe8d8] shadow-[8px_8px_0_rgba(104,73,50,0.12)] sm:min-h-[calc(100vh-40px)]">
+                    {/* SYSTEM BAR */}
+                    <SystemBar />
+                    <div className="mx-auto max-w-4xl px-6 py-12 sm:px-10">
+                        {/* SYSTEM LABEL */}
+                        <p className="mb-4 text-[11px] tracking-[0.2em] text-[#806754]">
+                        // VOICE INTERVIEW MODULE
+                        </p>
+                        {/* TITLE */}
+                        <h1 className="text-[38px] leading-tight tracking-[0.06em] text-[#473226] sm:text-[52px]">
+                            READY TO
+                            <br />
+                            SPEAK._
+                        </h1>
+                        {/* DESCRIPTION */}
+                        <p className="mt-5 max-w-xl text-[14px] leading-7 tracking-[0.04em] text-[#806754]">
+                            Configure your voice interview session before connecting
+                            to the AI interviewer. Select your subject, difficulty
+                            and interview preferences to initialize the voice channel.
+                        </p>
+                        {/* SETUP TERMINAL */}
+                        <div className="mt-10 overflow-hidden rounded-xl border-2 border-[#684932] bg-[#f3ead9] shadow-[5px_5px_0_rgba(104,73,50,0.15)]">
+                            {/* TERMINAL HEADER */}
+                            <div className="flex items-center justify-between border-b-2 border-[#b49a7f] bg-[#f7eddb] px-6 py-4">
+                                <div>
+                                    <p className="text-[11px] tracking-[0.18em] text-[#5c4331]">
+                                        VOICE SESSION CONFIGURATION
+                                    </p>
+                                    <p className="mt-1 text-[8px] tracking-[0.14em] text-[#806754]">
+                                    // INITIALIZE COMMUNICATION CHANNEL
+                                    </p>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <span className="text-[9px] tracking-[0.14em] text-[#806754]">
+                                        READY
+                                    </span>
+                                    <span className="h-3 w-3 animate-pulse rounded-full border border-[#684932] bg-[#39a38e]" />
+                                </div>
+                            </div>
+                            {/* TERMINAL CONTENT */}
+                            <div className="p-6 sm:p-8">
+                                <InterviewSetup
+                                    onStart={handleStartSetup}
+                                />
+                            </div>
+                            {/* TERMINAL FOOTER */}
+                            <div className="flex items-center justify-between border-t-2 border-[#b49a7f] bg-[#f7eddb] px-6 py-4 text-[8px] tracking-[0.14em] text-[#806754]">
+                                <span>INPUT: MICROPHONE</span>
+                                <span>OUTPUT: AI VOICE</span>
+                                <span>CHANNEL: STANDBY</span>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </main>
+        );
+    }
+
     return (
         <main
             className={`${pixelOperator.className} min-h-screen bg-[#d8d8d4] p-3 text-[#3f3025] sm:p-5`}
@@ -425,22 +485,17 @@ export default function VoiceInterviewPage() {
                             </div>
 
                             {/* CURRENT STATUS */}
-
                             <div className="mt-9 border border-[#b49a7f] bg-[#f7eddb]/70 p-4">
-
                                 <p className="text-[9px] tracking-[0.16em] text-[#806754]">
                                     SYSTEM STATUS
                                 </p>
-
                                 <div className="mt-3 flex items-center gap-3">
-
                                     <span
                                         className={`h-3 w-3 rounded-full border border-[#684932] ${connected
                                             ? "animate-pulse bg-[#39a38e]"
                                             : "bg-[#e98782]"
                                             }`}
                                     />
-
                                     <p className="text-[11px] tracking-[0.12em] text-[#4a362a]">
                                         {connected
                                             ? demoSpeaker === "ai"
@@ -448,13 +503,9 @@ export default function VoiceInterviewPage() {
                                                 : "USER SIGNAL ACTIVE"
                                             : "SYSTEM STANDBY"}
                                     </p>
-
                                 </div>
-
                             </div>
-
                         </div>
-
 
                         {/* ================================================= */}
                         {/* CENTER RETRO COMPUTER */}

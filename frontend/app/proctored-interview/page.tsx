@@ -391,203 +391,129 @@ Speak naturally like a human interviewer.
     if (!started) {
         return (
             <main
-                className={`${pixelOperator.className} min-h-screen bg-[#e6e4df] p-4 text-[#4d3728] md:p-8`}
+                className={`${pixelOperator.className} min-h-screen bg-[#e6e4df] p-3 text-[#4d3728] sm:p-5`}
             >
-                {/* Retro Desktop Window */}
-                <section className="relative mx-auto min-h-[calc(100vh-32px)] max-w-[1450px] overflow-hidden rounded-[34px] border-[4px] border-[#62412c] bg-[#f3ead8] shadow-[18px_18px_0_rgba(92,60,40,0.85)]">
+                {/* MAIN DESKTOP */}
+                <section className="mx-auto min-h-[calc(100vh-24px)] max-w-[1350px] overflow-hidden rounded-[24px] border-[3px] border-[#62412c] bg-[#f3ead8] shadow-[10px_10px_0_rgba(92,60,40,0.35)]">
 
-                    {/* ================= TOP TEAL SYSTEM BAR ================= */}
-                    <header className="flex h-[58px] items-center justify-between border-b-[4px] border-[#62412c] bg-[#3d98a8] px-6 text-[#3f3026] md:px-8">
+                    {/* ================= SYSTEM BAR ================= */}
+                    <header className="flex h-14 items-center justify-between border-b-[3px] border-[#62412c] bg-[#3d98a8] px-5 sm:px-8">
 
-                        <p className="text-[13px] tracking-[0.08em] md:text-[18px]">
+                        <p className="text-[12px] tracking-[0.08em] sm:text-[16px]">
                             AI INTERVIEW ASSISTANT
                         </p>
 
-                        <div className="flex items-center gap-4 text-[12px] md:text-[16px]">
-                            <span>▭</span>
-                            <span>⌁</span>
-                            <span>◔</span>
-
-                            <span className="hidden md:inline">
+                        <div className="flex items-center gap-3 text-[11px] tracking-[0.1em]">
+                            <span className="hidden sm:inline">
                                 PROCTORED MODE
                             </span>
 
-                            <span className="hidden md:inline">
-                                ● READY
+                            <span className="flex items-center gap-2">
+                                <span className="h-2 w-2 animate-pulse rounded-full bg-[#73a77d]" />
+                                READY
                             </span>
                         </div>
+
                     </header>
 
-                    {/* ================= MAIN DESKTOP AREA ================= */}
-                    <div className="relative min-h-[calc(100vh-90px)] px-6 pb-36 pt-8 md:px-12 md:pt-12">
+                    {/* ================= MAIN CONTENT ================= */}
+                    <div className="mx-auto flex min-h-[calc(100vh-80px)] max-w-6xl items-center px-6 py-10 sm:px-10">
 
-                        {/* Decorative folders */}
-                        <div className="absolute right-8 top-8 hidden grid-cols-2 gap-x-10 gap-y-10 md:grid">
+                        <div className="grid w-full items-center gap-10 lg:grid-cols-[0.9fr_1.1fr]">
 
-                            {[
-                                "CAMERA",
-                                "MIC",
-                                "SCREEN",
-                                "SECURITY",
-                                "SESSION",
-                            ].map((item) => (
-                                <div
-                                    key={item}
-                                    className="flex flex-col items-center gap-2"
-                                >
-                                    <div className="relative h-11 w-16 rounded-[4px] border-2 border-[#765138] bg-[#ffd48c] shadow-[2px_3px_0_rgba(90,60,40,0.18)]">
-                                        <div className="absolute -top-[7px] left-1 h-2 w-6 rounded-t border-2 border-b-0 border-[#765138] bg-[#f5c878]" />
-                                    </div>
+                            {/* ================= LEFT CONTENT ================= */}
+                            <div className="max-w-[450px]">
 
-                                    <span className="text-[8px] tracking-[0.12em] text-[#7b6858]">
-                                        {item}
-                                    </span>
-                                </div>
-                            ))}
+                                <p className="text-[10px] tracking-[0.2em] text-[#8b725e]">
+                                // SECURE INTERVIEW SYSTEM
+                                </p>
 
-                        </div>
+                                <h1 className="mt-5 text-[42px] leading-[1.05] tracking-[0.05em] text-[#4c3528] sm:text-[56px]">
+                                    FACE TO
+                                    <br />
+                                    FACE._
+                                </h1>
 
-                        {/* ================= PAGE CONTENT ================= */}
-                        <div className="relative z-10 mx-auto flex min-h-[560px] max-w-6xl items-center">
+                                <p className="mt-5 max-w-[400px] text-[13px] leading-7 tracking-[0.04em] text-[#715d4e]">
+                                    Practice a realistic AI interview with voice
+                                    interaction, camera monitoring and screen sharing.
+                                </p>
 
-                            <div className="grid w-full gap-12 lg:grid-cols-[0.85fr_1.15fr]">
-
-                                {/* LEFT SIDE */}
-                                <div className="max-w-[500px]">
-
-                                    <p className="text-[11px] tracking-[0.2em] text-[#8b725e]">
-                                    // SECURE INTERVIEW SYSTEM
-                                    </p>
-
-                                    <h1 className="mt-7 text-[48px] leading-[1.1] tracking-[0.06em] text-[#4c3528] sm:text-[62px]">
-                                        FACE TO
-                                        <br />
-                                        FACE._
-                                    </h1>
-
-                                    <p className="mt-7 max-w-[420px] text-[13px] leading-7 tracking-[0.05em] text-[#715d4e]">
-                                        Experience a realistic AI interview with live
-                                        voice interaction, camera monitoring and
-                                        screen sharing.
-                                    </p>
-
-                                    {/* Retro system list */}
-                                    <div className="mt-10 border-l-2 border-[#9b7656] pl-5 text-[11px] leading-8 tracking-[0.1em] text-[#624c3d]">
-                                        <p>[01] CAMERA MONITORING</p>
-                                        <p>[02] LIVE VOICE INTERVIEW</p>
-                                        <p>[03] SCREEN SHARING REQUIRED</p>
-                                    </div>
-
-                                    <p className="mt-10 text-[9px] tracking-[0.16em] text-[#967d68]">
-                                    // PREPARE YOUR CAMERA, MICROPHONE AND SCREEN
-                                    </p>
-
+                                {/* SYSTEM FEATURES */}
+                                <div className="mt-8 space-y-2 border-l-2 border-[#9b7656] pl-4 text-[10px] tracking-[0.1em] text-[#624c3d]">
+                                    <p>[01] CAMERA MONITORING</p>
+                                    <p>[02] LIVE VOICE INTERVIEW</p>
+                                    <p>[03] SCREEN SHARING</p>
                                 </div>
 
-                                {/* ================= RETRO APP WINDOW ================= */}
-                                <div className="relative self-center">
+                                <p className="mt-8 text-[9px] tracking-[0.14em] text-[#967d68]">
+                                // CHECK YOUR CAMERA AND MICROPHONE BEFORE STARTING
+                                </p>
 
-                                    {/* Window shadow */}
-                                    <div className="absolute inset-0 translate-x-3 translate-y-3 rounded-[18px] bg-[#7b5035]" />
+                            </div>
 
-                                    <div className="relative overflow-hidden rounded-[18px] border-[3px] border-[#62412c] bg-[#f6eddc]">
+                            {/* ================= SETUP WINDOW ================= */}
+                            <div className="relative">
 
-                                        {/* App Title Bar */}
-                                        <div className="flex items-center justify-between border-b-[3px] border-[#62412c] bg-[#d9c3a0] px-5 py-4">
+                                {/* SHADOW */}
+                                <div className="absolute inset-0 translate-x-2 translate-y-2 rounded-[14px] bg-[#7b5035]" />
 
-                                            <div className="flex items-center gap-3">
-                                                <span className="h-3 w-3 rounded-full border border-[#62412c] bg-[#e47c6f]" />
-                                                <span className="h-3 w-3 rounded-full border border-[#62412c] bg-[#e9bd68]" />
-                                                <span className="h-3 w-3 rounded-full border border-[#62412c] bg-[#73a77d]" />
-                                            </div>
+                                <div className="relative overflow-hidden rounded-[14px] border-[3px] border-[#62412c] bg-[#f6eddc]">
 
-                                            <p className="text-[11px] tracking-[0.16em] text-[#513b2e]">
-                                                INTERVIEW_SETUP.EXE
+                                    {/* WINDOW HEADER */}
+                                    <div className="flex items-center justify-between border-b-[3px] border-[#62412c] bg-[#d9c3a0] px-5 py-3">
+
+                                        <div className="flex gap-2">
+                                            <span className="h-3 w-3 rounded-full border border-[#62412c] bg-[#e47c6f]" />
+                                            <span className="h-3 w-3 rounded-full border border-[#62412c] bg-[#e9bd68]" />
+                                            <span className="h-3 w-3 rounded-full border border-[#62412c] bg-[#73a77d]" />
+                                        </div>
+
+                                        <p className="text-[9px] tracking-[0.14em] text-[#513b2e]">
+                                            VOICE_SESSION.EXE
+                                        </p>
+
+                                        <span className="text-[13px]">
+                                            □
+                                        </span>
+
+                                    </div>
+
+                                    {/* WINDOW CONTENT */}
+                                    <div className="p-5 sm:p-7">
+
+                                        <div className="mb-6 border-b border-[#c9b69b] pb-4">
+
+                                            <p className="text-[9px] tracking-[0.18em] text-[#8a705d]">
+                                                SESSION CONFIGURATION
                                             </p>
 
-                                            <span className="text-[16px] text-[#513b2e]">
-                                                □
-                                            </span>
+                                            <h2 className="mt-2 text-[20px] tracking-[0.06em] text-[#4c3528]">
+                                                SETUP INTERVIEW._
+                                            </h2>
 
                                         </div>
 
-                                        {/* App Content */}
-                                        <div className="p-5 sm:p-8">
+                                        <InterviewSetup
+                                            onStart={startVoiceInterview}
+                                        />
 
-                                            <div className="mb-7 border-b border-[#c9b69b] pb-5">
+                                    </div>
 
-                                                <p className="text-[10px] tracking-[0.2em] text-[#8a705d]">
-                                                    INTERVIEW CONFIGURATION
-                                                </p>
+                                    {/* STATUS BAR */}
+                                    <div className="flex items-center justify-between border-t-2 border-[#62412c] bg-[#eadcc4] px-5 py-3 text-[8px] tracking-[0.12em] text-[#70594a]">
 
-                                                <p className="mt-3 text-[22px] tracking-[0.08em] text-[#4c3528]">
-                                                    SETUP SESSION._
-                                                </p>
+                                        <span>CONFIGURATION READY</span>
 
-                                            </div>
-
-                                            {/* KEEP YOUR EXISTING COMPONENT */}
-                                            <InterviewSetup
-                                                onStart={startVoiceInterview}
-                                            />
-
-                                        </div>
-
-                                        {/* Bottom status bar */}
-                                        <div className="flex items-center justify-between border-t-[2px] border-[#62412c] bg-[#eadcc4] px-5 py-3 text-[9px] tracking-[0.12em] text-[#70594a]">
-
-                                            <span>STATUS: CONFIGURATION READY</span>
-
-                                            <span>v1.0</span>
-
-                                        </div>
+                                        <span className="flex items-center gap-2">
+                                            <span className="h-1.5 w-1.5 rounded-full bg-[#73a77d]" />
+                                            SYSTEM ONLINE
+                                        </span>
 
                                     </div>
 
                                 </div>
 
-                            </div>
-
-                        </div>
-
-                        {/* ================= RETRO DESKTOP DOCK ================= */}
-                        <div className="absolute bottom-6 left-1/2 z-20 flex -translate-x-1/2 items-center gap-3 rounded-[16px] border-[3px] border-[#62412c] bg-[#eee0c8] px-4 py-3 shadow-[3px_4px_0_rgba(98,65,44,0.2)]">
-
-                            {/* Mail */}
-                            <div className="flex h-11 w-11 items-center justify-center rounded border-2 border-[#765138] bg-[#ffd38a] text-[20px]">
-                                ✉
-                            </div>
-
-                            {/* Calendar */}
-                            <div className="flex h-11 w-11 items-center justify-center rounded border-2 border-[#765138] bg-[#f3eee3] text-[14px]">
-                                21
-                            </div>
-
-                            {/* Chat */}
-                            <div className="flex h-11 w-11 items-center justify-center rounded border-2 border-[#765138] bg-[#54aa91] text-[20px]">
-                                ●
-                            </div>
-
-                            {/* Audio */}
-                            <div className="flex h-11 w-11 items-center justify-center rounded border-2 border-[#765138] bg-[#ec8c91] text-[20px]">
-                                ♪
-                            </div>
-
-                            {/* Browser */}
-                            <div className="flex h-11 w-11 items-center justify-center rounded border-2 border-[#765138] bg-[#299bad] text-[20px]">
-                                ◎
-                            </div>
-
-                            <div className="mx-1 h-9 w-px bg-[#9c8068]" />
-
-                            {/* Folder */}
-                            <div className="relative h-10 w-14 rounded border-2 border-[#765138] bg-[#ffd17d]">
-                                <div className="absolute -top-[7px] left-1 h-2 w-6 rounded-t border-2 border-b-0 border-[#765138] bg-[#f4c36d]" />
-                            </div>
-
-                            {/* Trash */}
-                            <div className="flex h-11 w-11 items-center justify-center text-[24px] text-[#6a4a35]">
-                                ♜
                             </div>
 
                         </div>

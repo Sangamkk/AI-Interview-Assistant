@@ -13,8 +13,9 @@ import InterviewSetup from "@/components/interview/InterviewSetup";
 import QuestionDisplay from "@/components/interview/QuestionDisplay";
 import AnswerBox from "@/components/interview/AnswerBox";
 import SystemBar from "@/components/ui/SystemBar";
-
 import { InterviewConfig } from "@/types/interview";
+
+
 
 const pixelOperator = localFont({
   src: "../fonts/PixelOperatorSC.ttf",
