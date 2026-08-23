@@ -17,44 +17,23 @@ public class VoiceInterviewWebSocketHandler extends TextWebSocketHandler {
     }
 
     @Override
-    public void afterConnectionEstablished(
-            WebSocketSession session
-    ) {
-        System.out.println(
-                "Voice client connected: " + session.getId()
-        );
+    public void afterConnectionEstablished( WebSocketSession session ) {
+        System.out.println( "Voice client connected: " + session.getId() );
     }
 
     @Override
-    protected void handleTextMessage(
-            WebSocketSession session,
-            TextMessage message
-    ) {
+    protected void handleTextMessage( WebSocketSession session, TextMessage message ) {
 
-        System.out.println(
-                "Message received from frontend: "
-                        + message.getPayload()
-        );
+        System.out.println( "Message received from frontend: " + message.getPayload() );
 
-        geminiLiveService.handleFrontendMessage(
-                session,
-                message.getPayload()
-        );
+        geminiLiveService.handleFrontendMessage( session, message.getPayload() );
     }
 
     @Override
-    public void afterConnectionClosed(
-            WebSocketSession session,
-            CloseStatus status
-    ) {
+    public void afterConnectionClosed( WebSocketSession session, CloseStatus status ) {
 
-        System.out.println(
-                "Voice client disconnected: "
-                        + session.getId()
-        );
+        System.out.println( "Voice client disconnected: " + session.getId() );
 
-        geminiLiveService.closeSession(
-                session.getId()
-        );
+        geminiLiveService.closeSession( session.getId() );
     }
 }
