@@ -41,6 +41,7 @@ export default function VoiceInterviewPage() {
 
     const startMicrophone = async () => {
         try {
+            console.log("Requesting microphone permission");
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             mediaStreamRef.current = stream;
             const audioContext = new AudioContext({ sampleRate: 16000 });
@@ -123,14 +124,14 @@ export default function VoiceInterviewPage() {
     // --------------------------------
     // Start voice interview
     // --------------------------------
-    
+
     const startVoiceInterview = async () => {
         try {
             setStatus("Connecting to interview server...");
             // ============================================
             // CONNECT TO YOUR SPRING BOOT BACKEND
             // ============================================
-            const socket = new WebSocket( "ws://localhost:8080/ws/voice-interview" );
+            const socket = new WebSocket("ws://localhost:8080/ws/voice-interview");
             socketRef.current = socket;
             // ============================================
             // BACKEND WEBSOCKET CONNECTED
@@ -251,11 +252,7 @@ export default function VoiceInterviewPage() {
             // WEBSOCKET ERROR
             // ============================================
             socket.onerror = (error) => {
-                console.error(
-                    "Backend WebSocket error:",
-                    error
-                );
-
+                console.error("Backend WebSocket connection failed");
                 setStatus("Backend connection error");
             };
 
@@ -263,25 +260,14 @@ export default function VoiceInterviewPage() {
             // WEBSOCKET CLOSED
             // ============================================
             socket.onclose = (event) => {
-                console.log(
-                    "Backend connection closed"
-                );
-
-                console.log(
-                    "Close code:",
-                    event.code
-                );
-
-                console.log(
-                    "Close reason:",
-                    event.reason
-                );
+                console.log("Backend WebSocket closed");
+                console.log("Close code:", event.code);
+                console.log("Close reason:", event.reason);
+                console.log("Was clean:", event.wasClean);
 
                 stopMicrophone();
-
                 setConnected(false);
                 setListening(false);
-
                 setStatus("Disconnected");
             };
 
