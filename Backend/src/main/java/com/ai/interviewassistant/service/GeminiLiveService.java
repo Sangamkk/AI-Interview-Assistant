@@ -83,10 +83,18 @@ public class GeminiLiveService {
             return;
         }
 
+        System.out.println("Gemini API key length: " + apiKey.length());
+        System.out.println(
+                "Gemini API key starts with: "
+                        + apiKey.substring(0, Math.min(5, apiKey.length())));
+
         String geminiUrl = "wss://generativelanguage.googleapis.com/ws/"
                 + "google.ai.generativelanguage.v1beta."
                 + "GenerativeService.BidiGenerateContent"
                 + "?key=" + apiKey;
+
+        System.out.println("FULL GEMINI URL:");
+        System.out.println(geminiUrl);
 
         httpClient.newWebSocketBuilder()
                 .buildAsync(
@@ -112,6 +120,7 @@ public class GeminiLiveService {
             WebSocket geminiSocket,
             String subject,
             String difficulty) {
+
         String setupMessage = """
                 {
                   "setup": {
@@ -119,10 +128,11 @@ public class GeminiLiveService {
                     "generationConfig": {
                       "responseModalities": ["AUDIO"]
                     },
+                    "outputAudioTranscription": {},
                     "systemInstruction": {
                       "parts": [
                         {
-                          "text": "You are a professional interviewer. Conduct a realistic interview about %s. The difficulty is %s. Start by greeting the candidate and asking the first question. Ask only one question at a time. Wait for the candidate's answer before continuing. Evaluate answers internally. Ask relevant follow-up questions. Keep responses concise and conversational."
+                          "text": "You are a professional interviewer. Conduct an interview about %s. The difficulty is %s. Start when the user asks you to begin. Ask only one question at a time and keep responses concise."
                         }
                       ]
                     }
@@ -136,6 +146,7 @@ public class GeminiLiveService {
 
         geminiSocket.sendText(setupMessage, true)
                 .whenComplete((socket, error) -> {
+
                     if (error != null) {
                         System.err.println("Gemini setup send failed");
                         error.printStackTrace();
@@ -143,6 +154,41 @@ public class GeminiLiveService {
                     }
 
                     System.out.println("Gemini setup sent");
+
+                    String firstMessage = """
+                            {
+                              "clientContent": {
+                                "turns": [
+                                  {
+                                    "role": "user",
+                                    "parts": [
+                                      {
+                                        "text": "Start the interview now. Greet me briefly and ask the first interview question."
+                                      }
+                                    ]
+                                  }
+                                ],
+                                "turnComplete": true
+                              }
+                            }
+                            """;
+
+                    System.out.println("Sending initial interview message:");
+                    System.out.println(firstMessage);
+
+                    geminiSocket.sendText(firstMessage, true)
+                            .whenComplete((result, sendError) -> {
+
+                                if (sendError != null) {
+                                    System.err.println(
+                                            "Initial interview message failed");
+                                    sendError.printStackTrace();
+                                    return;
+                                }
+
+                                System.out.println(
+                                        "Initial interview message sent");
+                            });
                 });
     }
 
@@ -262,7 +308,7 @@ public class GeminiLiveService {
                 boolean last) {
             try {
                 messageBuffer.append(data);
-
+                System.out.println("I am at onText()...");
                 if (!last) {
                     System.out.println("Gemini response fragment received:");
                     System.out.println(data);
