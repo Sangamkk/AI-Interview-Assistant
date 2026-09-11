@@ -1,7 +1,6 @@
 "use client";
 
 import { useRef, useState, useEffect } from "react";
-import { getGeminiToken } from "@/lib/gemini";
 import { arrayBufferToBase64, playGeminiAudio } from "@/lib/audio";
 import localFont from "next/font/local";
 import Image from "next/image";
@@ -35,68 +34,78 @@ export default function VoiceInterviewPage() {
         setConfig(interviewConfig);
         setStarted(true);
     };
-    // --------------------------------
-    // Start microphone
-    // --------------------------------
 
     const startMicrophone = async () => {
         try {
-            console.log("Requesting microphone permission");
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const stream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        channelCount: 1,
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true,
+                    }
+                });
             mediaStreamRef.current = stream;
-            const audioContext = new AudioContext({ sampleRate: 16000 });
+            const audioContext = new AudioContext({ sampleRate: 24000 });
             audioContextRef.current = audioContext;
-            const source = audioContext.createMediaStreamSource(stream);
-            sourceRef.current = source;
+            // Make sure AudioContext is running
+            if (audioContext.state === "suspended") {
+                await audioContext.resume();
+            }
 
-            const processor = audioContext.createScriptProcessor(4096, 1, 1);
+            const source = audioContext.createMediaStreamSource( stream );
+            sourceRef.current = source;
+            // Smaller audio chunks
+            const processor =audioContext.createScriptProcessor( 1024, 1, 1 );
             processorRef.current = processor;
+            const silentGain = audioContext.createGain();
+            silentGain.gain.value = 0;
+            // =========================================
+            // MICROPHONE AUDIO PROCESSING
+            // =========================================
             processor.onaudioprocess = (event) => {
                 const socket = socketRef.current;
-                if (!socket || socket.readyState !== WebSocket.OPEN) {
+                // WebSocket must be open
+                if ( !socket || socket.readyState !== WebSocket.OPEN ) {
                     return;
                 }
-
+                if (socket.bufferedAmount > 50000) {
+                    return;
+                }
                 const input = event.inputBuffer.getChannelData(0);
-                const pcm16 = new Int16Array(input.length);
-                for (let i = 0; i < input.length; i++) {
-                    const sample = Math.max(-1, Math.min(1, input[i]));
+                // Float32 → PCM16
+                const pcm16 = new Int16Array( input.length );
+                for ( let i = 0; i < input.length; i++ ) {
+                    const sample = Math.max( -1, Math.min( 1, input[i] ) );
                     pcm16[i] = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
                 }
-                const base64 = arrayBufferToBase64(pcm16.buffer);
-                // Gemini Live audio message
-                socket.send(
-                    JSON.stringify({
-                        realtimeInput: {
-                            audio: {
-                                data: base64,
-                                mimeType:
-                                    "audio/pcm;rate=16000"
-                            }
-                        }
-                    })
-                );
+                // PCM16 → Base64
+                const base64 = arrayBufferToBase64( pcm16.buffer );
+                // =====================================
+                // GEMINI LIVE AUDIO FORMAT
+                // =====================================
+                const message = { realtimeInput: { audio: { data: base64, mimeType: "audio/pcm;rate=24000" } } };
+                try {
+                    socket.send( JSON.stringify(message) );
+                } catch (error) {
+                    console.error( "Failed to send microphone audio:", error );
+                }
             };
+            // =========================================
+            // CONNECT AUDIO GRAPH
+            // =========================================
             source.connect(processor);
-            processor.connect(audioContext.destination);
+            processor.connect(silentGain);
+            silentGain.connect( audioContext.destination );
             setListening(true);
-            console.log(
-                "Microphone started"
-            );
         } catch (error) {
-            console.error(
-                "Microphone error:",
-                error
-            );
-            setStatus("Microphone permission denied");
+            console.error( "Microphone error:", error );
+            setStatus( "Microphone permission denied" );
         }
     };
-
-
     // --------------------------------
     // Stop microphone
     // --------------------------------
-
     const stopMicrophone = () => {
         processorRef.current?.disconnect();
         processorRef.current = null;
@@ -177,13 +186,19 @@ export default function VoiceInterviewPage() {
                     // Backend tells frontend Gemini is ready
                     // ========================================
                     if (data.type === "READY") {
-                        console.log(
-                            "Gemini session ready"
-                        );
+                        console.log("Gemini session ready");
                         setStatus("Gemini ready");
-                        // Start microphone only after backend
-                        // successfully connects to Gemini
+
+                        console.log("WebSocket state BEFORE microphone:",
+                            socket.readyState
+                        );
+
                         await startMicrophone();
+
+                        console.log("WebSocket state AFTER microphone:",
+                            socket.readyState
+                        );
+
                         return;
                     }
                     // ========================================
@@ -260,15 +275,38 @@ export default function VoiceInterviewPage() {
             // WEBSOCKET CLOSED
             // ============================================
             socket.onclose = (event) => {
-                console.log("Backend WebSocket closed");
-                console.log("Close code:", event.code);
-                console.log("Close reason:", event.reason);
-                console.log("Was clean:", event.wasClean);
+
+                console.log("================================");
+                console.log("BACKEND WEBSOCKET CLOSED");
+                console.log("================================");
+
+                console.log(
+                    "Close code:",
+                    event.code
+                );
+
+                console.log(
+                    "Close reason:",
+                    event.reason
+                );
+
+                console.log(
+                    "Was clean:",
+                    event.wasClean
+                );
 
                 stopMicrophone();
+
                 setConnected(false);
                 setListening(false);
-                setStatus("Disconnected");
+
+                if (event.code === 1009) {
+                    setStatus(
+                        "Connection closed: audio message too large"
+                    );
+                } else {
+                    setStatus("Disconnected");
+                }
             };
 
         } catch (error) {

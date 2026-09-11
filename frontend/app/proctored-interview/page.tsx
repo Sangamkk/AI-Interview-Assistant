@@ -1,7 +1,6 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { getGeminiToken } from "@/lib/gemini";
 import { arrayBufferToBase64, playGeminiAudio } from "@/lib/audio";
 import InterviewSetup from "@/components/interview/InterviewSetup";
 import CameraPreview from "@/components/interview/CameraPreview";
@@ -105,225 +104,461 @@ export default function ProctoredInterviewPage() {
 
             audioContextRef.current = audioContext;
 
-            const source = audioContext.createMediaStreamSource(stream);
+            if (audioContext.state === "suspended") {
+                await audioContext.resume();
+            }
+
+            const source =
+                audioContext.createMediaStreamSource(stream);
+
             sourceRef.current = source;
 
-            const processor = audioContext.createScriptProcessor(
-                4096,
-                1,
-                1
-            );
+            const processor =
+                audioContext.createScriptProcessor(
+                    1024,
+                    1,
+                    1
+                );
 
             processorRef.current = processor;
 
+            // Prevent microphone audio from being played through speakers
+            const silentGain =
+                audioContext.createGain();
+
+            silentGain.gain.value = 0;
+
             processor.onaudioprocess = (event) => {
+
                 const socket = socketRef.current;
 
-                if (!socket || socket.readyState !== WebSocket.OPEN) {
+                if (
+                    !socket ||
+                    socket.readyState !== WebSocket.OPEN
+                ) {
                     return;
                 }
 
-                const input = event.inputBuffer.getChannelData(0);
-                const pcm16 = new Int16Array(input.length);
-                for (let i = 0; i < input.length; i++) {
-                    const sample = Math.max(-1, Math.min(1, input[i]));
-                    pcm16[i] = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
+                // Prevent WebSocket backlog
+                if (socket.bufferedAmount > 50000) {
+                    console.warn(
+                        "WebSocket buffer high, skipping audio chunk:",
+                        socket.bufferedAmount
+                    );
+                    return;
                 }
 
-                const base64 = arrayBufferToBase64(pcm16.buffer);
-                socket.send(
-                    JSON.stringify({
-                        realtimeInput: {
-                            audio: {
-                                data: base64,
-                                mimeType: "audio/pcm;rate=16000"
-                            }
+                const input =
+                    event.inputBuffer.getChannelData(0);
+
+                const pcm16 =
+                    new Int16Array(input.length);
+
+                for (let i = 0; i < input.length; i++) {
+
+                    const sample =
+                        Math.max(
+                            -1,
+                            Math.min(1, input[i])
+                        );
+
+                    pcm16[i] =
+                        sample < 0
+                            ? sample * 0x8000
+                            : sample * 0x7fff;
+                }
+
+                const base64 =
+                    arrayBufferToBase64(
+                        pcm16.buffer
+                    );
+
+                const message = {
+                    realtimeInput: {
+                        audio: {
+                            data: base64,
+                            mimeType: "audio/pcm;rate=16000"
                         }
-                    })
+                    }
+                };
+
+                const setupJson =
+                    JSON.stringify(message);
+
+                console.log(
+                    "Gemini setup message size:",
+                    setupJson.length,
+                    "characters"
+                );
+
+                socket.send(setupJson);
+
+                console.log(
+                    "Gemini setup sent"
                 );
             };
+
             source.connect(processor);
-            processor.connect(audioContext.destination);
+
+            processor.connect(silentGain);
+
+            silentGain.connect(
+                audioContext.destination
+            );
+
             setListening(true);
+
+            console.log(
+                "Microphone processing started"
+            );
+
         } catch (error) {
-            console.error("Microphone processing error:", error);
+
+            console.error(
+                "Microphone processing error:",
+                error
+            );
+
+            setStatus(
+                "Microphone processing failed"
+            );
         }
     };
     // --------------------------------
     // Start Gemini voice interview
     // --------------------------------
-    const startVoiceInterview = async (interviewConfig: InterviewConfig) => {
+    const startVoiceInterview = async (
+        interviewConfig: InterviewConfig
+    ) => {
         try {
+
             setConfig(interviewConfig);
             setStarted(true);
-            setStatus("Requesting permissions...");
-            const mediaStream = await startCameraAndMicrophone();
-            await startScreenSharing();
-            setStatus("Getting Gemini session...");
-            const token = await getGeminiToken();
 
-            console.log("Gemini token received");
-            const socket = new WebSocket(`wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained?access_token=${token}`);
+            setStatus("Requesting permissions...");
+
+            // --------------------------------
+            // CAMERA + MICROPHONE
+            // --------------------------------
+
+            const mediaStream =
+                await startCameraAndMicrophone();
+
+            // --------------------------------
+            // SCREEN SHARING
+            // --------------------------------
+
+            await startScreenSharing();
+
+            // --------------------------------
+            // CONNECT TO SPRING BOOT
+            // --------------------------------
+
+            setStatus(
+                "Connecting to interview server..."
+            );
+            console.log("i am here.");
+            const socket = new WebSocket(
+                "ws://localhost:8080/ws/voice-interview"
+            );
+            console.log("i am here.");
+
             socketRef.current = socket;
+
             // --------------------------------
-            // WebSocket OPEN
+            // BACKEND CONNECTED
             // --------------------------------
+
             socket.onopen = () => {
-                console.log("Connected to Gemini Live");
-                setConnected(true);
-                setStatus("Connecting to Gemini...");
-                const setupMessage = {
-                    setup: {
-                        model: "models/gemini-3.1-flash-live-preview",
-                        generationConfig: {
-                            responseModalities: ["AUDIO"]
-                        },
-                        systemInstruction: {
-                            parts: [{
-                                text: `
-You are a professional ${interviewConfig.type} interviewer.
-Conduct a realistic interview.
-Interview topic: ${interviewConfig.subject}
-Programming language: ${interviewConfig.language}
-Difficulty level: ${interviewConfig.difficulty}
-Number of questions: ${interviewConfig.questionCount}
-Ask one question at a time.
-Wait for the candidate's answer.
-Listen carefully.
-Evaluate the answer internally.
-Ask relevant follow-up questions.
-Keep your responses concise and conversational.
-Speak naturally like a human interviewer.
-                                `
-                            }]
-                        }
-                    }
-                };
-                socket.send(
-                    JSON.stringify(setupMessage)
+
+                console.log(
+                    "Connected to backend"
                 );
-                console.log("Gemini setup sent");
+
+                setConnected(true);
+
+                setStatus(
+                    "Starting Gemini session..."
+                );
+
+                // Send interview configuration
+                // to Spring Boot
+
+                const setupMessage = {
+                    type: "SETUP",
+
+                    subject:
+                        interviewConfig.subject,
+
+                    difficulty:
+                        interviewConfig.difficulty,
+
+                    interviewType:
+                        interviewConfig.type,
+
+                    language:
+                        interviewConfig.language,
+
+                    questionCount:
+                        interviewConfig.questionCount
+                };
+
+                socket.send(
+                    JSON.stringify(
+                        setupMessage
+                    )
+                );
+
+                console.log(
+                    "Interview setup sent to backend"
+                );
             };
+
             // --------------------------------
-            // Messages from Gemini
+            // MESSAGES FROM SPRING BOOT
             // --------------------------------
-            socket.onmessage = async (event) => {
+
+            socket.onmessage = async (
+                event
+            ) => {
+
                 try {
+
                     let messageText: string;
 
-                    if (event.data instanceof Blob) {
+                    if (
+                        event.data instanceof Blob
+                    ) {
+
                         messageText =
                             await event.data.text();
+
+                    } else if (
+                        event.data instanceof ArrayBuffer
+                    ) {
+
+                        messageText =
+                            new TextDecoder().decode(
+                                event.data
+                            );
+
                     } else if (
                         typeof event.data === "string"
                     ) {
-                        messageText = event.data;
+
+                        messageText =
+                            event.data;
+
                     } else {
+
                         console.log(
-                            "Unknown Gemini message:",
+                            "Unknown backend message:",
                             event.data
                         );
-                        return;
-                    }
-                    const data = JSON.parse(messageText);
-                    // --------------------------------
-                    // Gemini ready
-                    // --------------------------------
-                    if (data.setupComplete) {
-                        console.log(
-                            "Gemini setup complete"
-                        );
-                        setStatus("Gemini ready");
-                        await startMicrophone(mediaStream);
+
                         return;
                     }
 
-                    const serverContent = data.serverContent;
-                    if (!serverContent) {
+                    const data =
+                        JSON.parse(
+                            messageText
+                        );
+
+                    console.log(
+                        "Backend message:",
+                        data
+                    );
+
+                    // --------------------------------
+                    // GEMINI READY
+                    // --------------------------------
+
+                    if (
+                        data.type === "READY"
+                    ) {
+
+                        console.log(
+                            "Gemini session ready"
+                        );
+
+                        setStatus(
+                            "Gemini ready"
+                        );
+
+                        // Start sending microphone
+                        // audio to Spring Boot
+
+                        await startMicrophone(
+                            mediaStream
+                        );
+
+                        console.log(
+                            "Microphone started"
+                        );
+
                         return;
                     }
+
                     // --------------------------------
-                    // Gemini audio
+                    // GEMINI AUDIO
                     // --------------------------------
-                    const modelTurn = serverContent.modelTurn;
-                    if (modelTurn?.parts) {
-                        for (const part of modelTurn.parts) {
-                            if (part.inlineData) {
-                                const audioData = part.inlineData.data;
-                                playGeminiAudio(
-                                    audioData,
-                                    playbackContextRef,
-                                    nextAudioTimeRef
-                                );
-                            }
-                        }
+
+                    if (
+                        data.type === "AUDIO"
+                    ) {
+
+                        console.log(
+                            "Gemini audio received"
+                        );
+
+                        playGeminiAudio(
+                            data.audio,
+                            playbackContextRef,
+                            nextAudioTimeRef
+                        );
+
+                        return;
                     }
+
                     // --------------------------------
-                    // User transcription
+                    // USER TRANSCRIPTION
                     // --------------------------------
-                    if (serverContent.inputTranscription) {
+
+                    if (
+                        data.type ===
+                        "USER_TRANSCRIPTION"
+                    ) {
+
                         console.log(
                             "You:",
-                            serverContent
-                                .inputTranscription
-                                .text
+                            data.text
                         );
+
+                        return;
                     }
+
                     // --------------------------------
-                    // Gemini transcription
+                    // AI TRANSCRIPTION
                     // --------------------------------
-                    if (serverContent.outputTranscription) {
+
+                    if (
+                        data.type ===
+                        "AI_TRANSCRIPTION"
+                    ) {
+
                         console.log(
                             "Gemini:",
-                            serverContent
-                                .outputTranscription
-                                .text
+                            data.text
                         );
+
+                        return;
                     }
+
+                    // --------------------------------
+                    // ERROR
+                    // --------------------------------
+
+                    if (
+                        data.type === "ERROR"
+                    ) {
+
+                        console.error(
+                            "Backend error:",
+                            data.message
+                        );
+
+                        setStatus(
+                            data.message
+                        );
+
+                        return;
+                    }
+
                 } catch (error) {
+
                     console.error(
-                        "Gemini message error:",
+                        "Backend message error:",
                         error
                     );
                 }
             };
+
             // --------------------------------
-            // WebSocket error
+            // WEBSOCKET ERROR
             // --------------------------------
-            socket.onerror = (error) => {
+
+            socket.onerror = (
+                error
+            ) => {
+
                 console.error(
-                    "Gemini WebSocket error:",
+                    "Backend WebSocket error:",
                     error
                 );
+
                 setStatus(
-                    "Gemini connection error"
+                    "Backend connection error"
                 );
             };
+
             // --------------------------------
-            // WebSocket closed
+            // WEBSOCKET CLOSED
             // --------------------------------
-            socket.onclose = (event) => {
+
+            socket.onclose = (
+                event
+            ) => {
+
                 console.log(
-                    "Gemini connection closed"
+                    "================================"
                 );
+
+                console.log(
+                    "BACKEND WEBSOCKET CLOSED"
+                );
+
                 console.log(
                     "Close code:",
                     event.code
                 );
+
                 console.log(
                     "Close reason:",
                     event.reason
                 );
+
+                console.log(
+                    "Was clean:",
+                    event.wasClean
+                );
+
+                console.log(
+                    "================================"
+                );
+
                 stopInterview();
-                setStatus("Disconnected");
+
+                setConnected(false);
+                setListening(false);
+
+                setStatus(
+                    event.code === 1009
+                        ? "WebSocket message too large"
+                        : "Disconnected"
+                );
             };
+
         } catch (error) {
+
             console.error(
                 "Proctored interview error:",
                 error
             );
+
             stopInterview();
+
             setStarted(false);
+
             setStatus(
                 "Unable to start interview"
             );
