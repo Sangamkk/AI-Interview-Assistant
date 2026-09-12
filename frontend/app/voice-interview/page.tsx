@@ -15,107 +15,561 @@ const pixelOperator = localFont({
 
 export default function VoiceInterviewPage() {
 
+    // =========================================================
+    // STATE
+    // =========================================================
+
     const [connected, setConnected] = useState(false);
     const [listening, setListening] = useState(false);
     const [status, setStatus] = useState("Not connected");
 
-    const socketRef = useRef<WebSocket | null>(null);//webSocket connection
-    const mediaStreamRef = useRef<MediaStream | null>(null);//microphone connection
-    const audioContextRef = useRef<AudioContext | null>(null);//Audio Content
-    const processorRef = useRef<ScriptProcessorNode | null>(null);//Stores the processed Audio
-    const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);//Stores the connection between microphone-Audio-processing
-    const playbackContextRef = useRef<AudioContext | null>(null);//gemini response
-    const nextAudioTimeRef = useRef(0);//next Gemini audio chunk
+    const [micPermission, setMicPermission] = useState<
+        "unknown" | "granted" | "denied"
+    >("unknown");
 
     const [started, setStarted] = useState(false);
     const [config, setConfig] = useState<InterviewConfig | null>(null);
 
-    const handleStartSetup = (interviewConfig: InterviewConfig) => {
-        setConfig(interviewConfig);
-        setStarted(true);
-    };
+    // =========================================================
+    // REFS
+    // =========================================================
 
-    const startMicrophone = async () => {
+    // Backend WebSocket
+    const socketRef = useRef<WebSocket | null>(null);
+
+    // Microphone
+    const mediaStreamRef = useRef<MediaStream | null>(null);
+
+    // Microphone AudioContext
+    const audioContextRef = useRef<AudioContext | null>(null);
+
+    // Audio processor
+    const processorRef = useRef<ScriptProcessorNode | null>(null);
+
+    // Microphone -> AudioContext connection
+    const sourceRef =
+        useRef<MediaStreamAudioSourceNode | null>(null);
+
+    // Gemini playback AudioContext
+    const playbackContextRef =
+        useRef<AudioContext | null>(null);
+
+    // Keeps Gemini audio chunks sequential
+    const nextAudioTimeRef = useRef(0);
+
+    // =========================================================
+    // MICROPHONE PERMISSION
+    // =========================================================
+
+    const requestMicrophonePermission =
+        async (): Promise<boolean> => {
+
+            try {
+
+                console.log(
+                    "Requesting microphone permission..."
+                );
+
+                const stream =
+                    await navigator.mediaDevices.getUserMedia({
+                        audio: true,
+                    });
+
+                // This stream is only used to request permission.
+                // We stop it immediately.
+                stream.getTracks().forEach((track) => {
+                    track.stop();
+                });
+
+                setMicPermission("granted");
+
+                console.log(
+                    "Microphone permission granted."
+                );
+
+                return true;
+
+            } catch (error: any) {
+
+                console.error(
+                    "Microphone permission error:",
+                    error
+                );
+
+                console.error(
+                    "Error name:",
+                    error?.name
+                );
+
+                console.error(
+                    "Error message:",
+                    error?.message
+                );
+
+                setMicPermission("denied");
+
+                // ---------------------------------------------
+                // Permission denied
+                // ---------------------------------------------
+
+                if (
+                    error?.name === "NotAllowedError" ||
+                    error?.name === "PermissionDeniedError"
+                ) {
+
+                    alert(
+                        "Microphone access is required for the voice interview.\n\n" +
+                        "Please click Allow when the browser asks for microphone access, " +
+                        "then try starting the interview again."
+                    );
+
+                }
+
+                // ---------------------------------------------
+                // No microphone
+                // ---------------------------------------------
+
+                else if (
+                    error?.name === "NotFoundError"
+                ) {
+
+                    alert(
+                        "No microphone was found on your device.\n\n" +
+                        "Please connect a microphone and try again."
+                    );
+
+                }
+
+                // ---------------------------------------------
+                // Microphone already being used
+                // ---------------------------------------------
+
+                else if (
+                    error?.name === "NotReadableError"
+                ) {
+
+                    alert(
+                        "Your microphone could not be accessed.\n\n" +
+                        "It may already be in use by another application."
+                    );
+
+                }
+
+                // ---------------------------------------------
+                // Other error
+                // ---------------------------------------------
+
+                else {
+
+                    alert(
+                        "Unable to access your microphone.\n\n" +
+                        "Please check your microphone settings and try again."
+                    );
+                }
+
+                return false;
+            }
+        };
+
+    // =========================================================
+    // START SETUP
+    // =========================================================
+
+    const handleStartSetup = async (interviewConfig: InterviewConfig) => {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({
+                audio: true,
+            });
+
+            // Permission granted
+            stream.getTracks().forEach((track) => track.stop());
+
+            setConfig(interviewConfig);
+            setStarted(true);
+
+        } catch (error) {
+            console.error("Microphone permission denied:", error);
+
+            alert(
+                "Microphone access is required for the interview. Please allow microphone access and try again."
+            );
+        }
+    };
+
+    // =========================================================
+    // START MICROPHONE
+    // =========================================================
+
+    const startMicrophone = async () => {
+
+        try {
+
+            console.log(
+                "Starting microphone after permission was granted..."
+            );
+
+            /*
+             * We request the actual microphone stream here.
+             *
+             * The permission was already granted during setup,
+             * so the browser normally will not display another
+             * permission dialog.
+             */
+
+            const stream =
+                await navigator.mediaDevices.getUserMedia({
                     audio: {
                         channelCount: 1,
                         echoCancellation: true,
                         noiseSuppression: true,
                         autoGainControl: true,
-                    }
+                    },
                 });
+
+            console.log(
+                "Microphone stream acquired."
+            );
+
             mediaStreamRef.current = stream;
-            const audioContext = new AudioContext({ sampleRate: 24000 });
-            audioContextRef.current = audioContext;
-            // Make sure AudioContext is running
-            if (audioContext.state === "suspended") {
+
+            // =================================================
+            // AUDIO CONTEXT
+            // =================================================
+
+            const audioContext =
+                new AudioContext({
+                    sampleRate: 16000,
+                });
+
+            audioContextRef.current =
+                audioContext;
+
+            if (
+                audioContext.state === "suspended"
+            ) {
+
                 await audioContext.resume();
             }
 
-            const source = audioContext.createMediaStreamSource( stream );
-            sourceRef.current = source;
-            // Smaller audio chunks
-            const processor =audioContext.createScriptProcessor( 1024, 1, 1 );
-            processorRef.current = processor;
-            const silentGain = audioContext.createGain();
+            // =================================================
+            // MICROPHONE SOURCE
+            // =================================================
+
+            const source =
+                audioContext.createMediaStreamSource(
+                    stream
+                );
+
+            sourceRef.current =
+                source;
+
+            // =================================================
+            // AUDIO PROCESSOR
+            // =================================================
+
+            const processor =
+                audioContext.createScriptProcessor(
+                    1024,
+                    1,
+                    1
+                );
+
+            processorRef.current =
+                processor;
+
+            // =================================================
+            // SILENT OUTPUT
+            // =================================================
+
+            /*
+             * We need to connect the processor to the
+             * AudioContext, otherwise some browsers may
+             * stop processing it.
+             *
+             * Gain = 0 prevents microphone audio from
+             * being played back through the speakers.
+             */
+
+            const silentGain =
+                audioContext.createGain();
+
             silentGain.gain.value = 0;
-            // =========================================
-            // MICROPHONE AUDIO PROCESSING
-            // =========================================
-            processor.onaudioprocess = (event) => {
-                const socket = socketRef.current;
-                // WebSocket must be open
-                if ( !socket || socket.readyState !== WebSocket.OPEN ) {
-                    return;
-                }
-                if (socket.bufferedAmount > 50000) {
-                    return;
-                }
-                const input = event.inputBuffer.getChannelData(0);
-                // Float32 → PCM16
-                const pcm16 = new Int16Array( input.length );
-                for ( let i = 0; i < input.length; i++ ) {
-                    const sample = Math.max( -1, Math.min( 1, input[i] ) );
-                    pcm16[i] = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
-                }
-                // PCM16 → Base64
-                const base64 = arrayBufferToBase64( pcm16.buffer );
-                // =====================================
-                // GEMINI LIVE AUDIO FORMAT
-                // =====================================
-                const message = { realtimeInput: { audio: { data: base64, mimeType: "audio/pcm;rate=24000" } } };
-                try {
-                    socket.send( JSON.stringify(message) );
-                } catch (error) {
-                    console.error( "Failed to send microphone audio:", error );
-                }
-            };
-            // =========================================
-            // CONNECT AUDIO GRAPH
-            // =========================================
-            source.connect(processor);
-            processor.connect(silentGain);
-            silentGain.connect( audioContext.destination );
+
+            // =================================================
+            // AUDIO PROCESSING
+            // =================================================
+
+            processor.onaudioprocess =
+                (event) => {
+
+                    const socket =
+                        socketRef.current;
+
+                    // -----------------------------------------
+                    // WebSocket must be open
+                    // -----------------------------------------
+
+                    if (
+                        !socket ||
+                        socket.readyState !==
+                        WebSocket.OPEN
+                    ) {
+                        return;
+                    }
+
+                    // -----------------------------------------
+                    // Prevent WebSocket buffer overflow
+                    // -----------------------------------------
+
+                    if (
+                        socket.bufferedAmount >
+                        50000
+                    ) {
+                        return;
+                    }
+
+                    // -----------------------------------------
+                    // Get microphone samples
+                    // -----------------------------------------
+
+                    const input =
+                        event.inputBuffer
+                            .getChannelData(0);
+
+                    // -----------------------------------------
+                    // Convert Float32 -> PCM16
+                    // -----------------------------------------
+
+                    const pcm16 =
+                        new Int16Array(
+                            input.length
+                        );
+
+                    for (
+                        let i = 0;
+                        i < input.length;
+                        i++
+                    ) {
+
+                        const sample =
+                            Math.max(
+                                -1,
+                                Math.min(
+                                    1,
+                                    input[i]
+                                )
+                            );
+
+                        pcm16[i] =
+                            sample < 0
+                                ? sample * 0x8000
+                                : sample * 0x7fff;
+                    }
+
+                    // -----------------------------------------
+                    // Convert PCM -> Base64
+                    // -----------------------------------------
+
+                    const base64 =
+                        arrayBufferToBase64(
+                            pcm16.buffer
+                        );
+
+                    // -----------------------------------------
+                    // Gemini Live message
+                    // -----------------------------------------
+
+                    const message = {
+
+                        realtimeInput: {
+
+                            audio: {
+
+                                data: base64,
+
+                                mimeType:
+                                    "audio/pcm;rate=16000",
+                            },
+                        },
+                    };
+
+                    // -----------------------------------------
+                    // Send to Spring Boot
+                    // -----------------------------------------
+
+                    try {
+
+                        socket.send(
+                            JSON.stringify(
+                                message
+                            )
+                        );
+
+                    } catch (error) {
+
+                        console.error(
+                            "Failed to send microphone audio:",
+                            error
+                        );
+                    }
+                };
+
+            // =================================================
+            // CONNECT AUDIO PIPELINE
+            // =================================================
+
+            source.connect(
+                processor
+            );
+
+            processor.connect(
+                silentGain
+            );
+
+            silentGain.connect(
+                audioContext.destination
+            );
+
             setListening(true);
-        } catch (error) {
-            console.error( "Microphone error:", error );
-            setStatus( "Microphone permission denied" );
+
+            setStatus(
+                "Your turn"
+            );
+
+            console.log(
+                "Microphone is now listening."
+            );
+
+        } catch (error: any) {
+
+            console.error(
+                "Microphone error:",
+                error
+            );
+
+            console.error(
+                "Error name:",
+                error?.name
+            );
+
+            console.error(
+                "Error message:",
+                error?.message
+            );
+
+            // =================================================
+            // PERMISSION DENIED
+            // =================================================
+
+            if (
+                error?.name ===
+                "NotAllowedError" ||
+                error?.name ===
+                "PermissionDeniedError"
+            ) {
+
+                setMicPermission(
+                    "denied"
+                );
+
+                alert(
+                    "Microphone permission is required for the voice interview.\n\n" +
+                    "Please allow microphone access in your browser and try again."
+                );
+            }
+
+            // =================================================
+            // MICROPHONE NOT FOUND
+            // =================================================
+
+            else if (
+                error?.name ===
+                "NotFoundError"
+            ) {
+
+                alert(
+                    "No microphone was found on your device.\n\n" +
+                    "Please connect a microphone and try again."
+                );
+            }
+
+            // =================================================
+            // MICROPHONE BUSY
+            // =================================================
+
+            else if (
+                error?.name ===
+                "NotReadableError"
+            ) {
+
+                alert(
+                    "Your microphone could not be accessed.\n\n" +
+                    "It may already be in use by another application."
+                );
+            }
+
+            // =================================================
+            // OTHER ERROR
+            // =================================================
+
+            else {
+
+                alert(
+                    "Unable to access your microphone.\n\n" +
+                    "Please check your microphone settings and try again."
+                );
+            }
+
+            setListening(false);
         }
     };
-    // --------------------------------
-    // Stop microphone
-    // --------------------------------
+
+    // =========================================================
+    // STOP MICROPHONE
+    // =========================================================
+
     const stopMicrophone = () => {
+
+        // ---------------------------------------------
+        // Stop processor
+        // ---------------------------------------------
+
         processorRef.current?.disconnect();
-        processorRef.current = null;
+
+        processorRef.current =
+            null;
+
+        // ---------------------------------------------
+        // Disconnect microphone source
+        // ---------------------------------------------
+
         sourceRef.current?.disconnect();
-        sourceRef.current = null;
-        if (audioContextRef.current) {
+
+        sourceRef.current =
+            null;
+
+        // ---------------------------------------------
+        // Close AudioContext
+        // ---------------------------------------------
+
+        if (
+            audioContextRef.current
+        ) {
+
             audioContextRef.current.close();
-            audioContextRef.current = null;
+
+            audioContextRef.current =
+                null;
         }
-        if (mediaStreamRef.current) {
+
+        // ---------------------------------------------
+        // Stop microphone tracks
+        // ---------------------------------------------
+
+        if (
+            mediaStreamRef.current
+        ) {
+
             mediaStreamRef.current
                 .getTracks()
                 .forEach(
@@ -123,370 +577,1110 @@ export default function VoiceInterviewPage() {
                         track.stop();
                     }
                 );
-            mediaStreamRef.current = null;
+
+            mediaStreamRef.current =
+                null;
         }
+
         setListening(false);
+
         console.log(
-            "Microphone stopped"
+            "Microphone stopped."
         );
     };
-    // --------------------------------
-    // Start voice interview
-    // --------------------------------
 
-    const startVoiceInterview = async () => {
-        try {
-            setStatus("Connecting to interview server...");
-            // ============================================
-            // CONNECT TO YOUR SPRING BOOT BACKEND
-            // ============================================
-            const socket = new WebSocket("ws://localhost:8080/ws/voice-interview");
-            socketRef.current = socket;
-            // ============================================
-            // BACKEND WEBSOCKET CONNECTED
-            // ============================================
-            socket.onopen = () => {
-                console.log("Connected to backend");
-                setConnected(true);
-                setStatus("Starting Gemini session...");
-                // Send interview configuration to backend
-                // Backend will create the Gemini connection
-                const setupMessage = {
-                    type: "SETUP",
-                    subject: "HR Interview",
-                    difficulty: "hard"
-                };
-                socket.send(JSON.stringify(setupMessage));
-                console.log("Interview setup sent to backend");
-            };
-            // ============================================
-            // MESSAGES FROM BACKEND
-            // ============================================
-            socket.onmessage = async (event) => {
-                try {
-                    let messageText: string;
-                    if (event.data instanceof Blob) {
-                        messageText = await event.data.text();
-                    } else if (typeof event.data === "string") {
-                        messageText = event.data;
-                    } else {
-                        console.log(
-                            "Unknown backend message:",
-                            event.data
-                        );
-                        return;
-                    }
-                    console.log(
-                        "Backend message:",
-                        messageText
+    // =========================================================
+    // START VOICE INTERVIEW
+    // =========================================================
+
+    const startVoiceInterview =
+        async (
+            interviewConfig: InterviewConfig
+        ) => {
+
+            try {
+
+                setStatus(
+                    "Connecting to interview server..."
+                );
+
+                // =================================================
+                // CONNECT TO SPRING BOOT
+                // =================================================
+
+                const socket =
+                    new WebSocket(
+                        "ws://localhost:8080/ws/voice-interview"
                     );
-                    const data = JSON.parse(messageText);
-                    // ========================================
-                    // GEMINI SESSION READY
-                    // Backend tells frontend Gemini is ready
-                    // ========================================
-                    if (data.type === "READY") {
-                        console.log("Gemini session ready");
-                        setStatus("Gemini ready");
 
-                        console.log("WebSocket state BEFORE microphone:",
-                            socket.readyState
-                        );
+                socketRef.current =
+                    socket;
 
-                        await startMicrophone();
+                /*
+                 * IMPORTANT:
+                 *
+                 * This variable MUST be outside socket.onmessage.
+                 *
+                 * If it is inside onmessage, every incoming
+                 * Gemini message resets it to false.
+                 */
 
-                        console.log("WebSocket state AFTER microphone:",
-                            socket.readyState
-                        );
+                let audioStarted =
+                    false;
 
-                        return;
-                    }
-                    // ========================================
-                    // GEMINI AUDIO
-                    // Backend forwards Gemini audio here
-                    // ========================================
-                    if (data.type === "AUDIO") {
+                // =================================================
+                // BACKEND CONNECTION OPEN
+                // =================================================
+
+                socket.onopen =
+                    () => {
+
                         console.log(
-                            "Gemini audio received from backend"
+                            "Connected to backend."
                         );
 
-                        playGeminiAudio(
-                            data.audio,
-                            playbackContextRef,
-                            nextAudioTimeRef
+                        setConnected(
+                            true
                         );
 
-                        return;
-                    }
+                        setStatus(
+                            "Starting Gemini session..."
+                        );
 
-                    // ========================================
-                    // USER TRANSCRIPTION
-                    // ========================================
-                    if (data.type === "USER_TRANSCRIPTION") {
+                        // -----------------------------------------
+                        // Send interview configuration
+                        // -----------------------------------------
+
+                        const setupMessage = {
+
+                            type: "SETUP",
+
+                            subject:
+                                interviewConfig.subject,
+
+                            difficulty:
+                                interviewConfig.difficulty,
+
+                            interviewType:
+                                interviewConfig.type,
+
+                            questionCount:
+                                interviewConfig.questionCount,
+                        };
+
+                        socket.send(
+                            JSON.stringify(
+                                setupMessage
+                            )
+                        );
+
                         console.log(
-                            "You:",
-                            data.text
+                            "Interview setup sent to backend:",
+                            setupMessage
                         );
+                    };
 
-                        return;
-                    }
+                // =================================================
+                // MESSAGES FROM SPRING BOOT
+                // =================================================
 
-                    // ========================================
-                    // GEMINI TRANSCRIPTION
-                    // ========================================
-                    if (data.type === "AI_TRANSCRIPTION") {
-                        console.log(
-                            "Gemini:",
-                            data.text
-                        );
+                socket.onmessage =
+                    async (event) => {
 
-                        return;
-                    }
+                        try {
 
-                    // ========================================
-                    // ERROR FROM BACKEND
-                    // ========================================
-                    if (data.type === "ERROR") {
+                            let messageText: string;
+
+                            // -------------------------------------
+                            // Blob message
+                            // -------------------------------------
+
+                            if (
+                                event.data
+                                instanceof Blob
+                            ) {
+
+                                messageText =
+                                    await event.data.text();
+
+                            }
+
+                            // -------------------------------------
+                            // Text message
+                            // -------------------------------------
+
+                            else if (
+                                typeof event.data ===
+                                "string"
+                            ) {
+
+                                messageText =
+                                    event.data;
+
+                            }
+
+                            // -------------------------------------
+                            // Unknown message
+                            // -------------------------------------
+
+                            else {
+
+                                console.log(
+                                    "Unknown backend message:",
+                                    event.data
+                                );
+
+                                return;
+                            }
+
+                            console.log(
+                                "Backend message:",
+                                messageText
+                            );
+
+                            const data =
+                                JSON.parse(
+                                    messageText
+                                );
+
+                            // =================================================
+                            // GEMINI READY
+                            // =================================================
+
+                            if (
+                                data.type ===
+                                "READY"
+                            ) {
+
+                                console.log(
+                                    "Gemini ready for candidate input."
+                                );
+
+                                /*
+                                 * Prevent duplicate READY messages
+                                 * from creating multiple microphone
+                                 * pipelines.
+                                 */
+
+                                if (
+                                    audioStarted
+                                ) {
+
+                                    console.warn(
+                                        "READY received again. " +
+                                        "Microphone already started."
+                                    );
+
+                                    return;
+                                }
+
+                                audioStarted =
+                                    true;
+
+                                setStatus(
+                                    "Your turn"
+                                );
+
+                                await startMicrophone();
+
+                                return;
+                            }
+
+                            // =================================================
+                            // GEMINI AUDIO
+                            // =================================================
+
+                            if (
+                                data.type ===
+                                "AUDIO"
+                            ) {
+
+                                console.log(
+                                    "GEMINI AUDIO RECEIVED",
+                                    {
+                                        time:
+                                            performance.now(),
+
+                                        audioLength:
+                                            data.audio
+                                                ?.length,
+                                    }
+                                );
+
+                                if (
+                                    data.audio
+                                ) {
+
+                                    playGeminiAudio(
+                                        data.audio,
+
+                                        playbackContextRef,
+
+                                        nextAudioTimeRef
+                                    );
+                                }
+
+                                return;
+                            }
+
+                            // =================================================
+                            // USER TRANSCRIPTION
+                            // =================================================
+
+                            if (
+                                data.type ===
+                                "USER_TRANSCRIPTION"
+                            ) {
+
+                                console.log(
+                                    "You:",
+                                    data.text
+                                );
+
+                                return;
+                            }
+
+                            // =================================================
+                            // AI TRANSCRIPTION
+                            // =================================================
+
+                            if (
+                                data.type ===
+                                "AI_TRANSCRIPTION"
+                            ) {
+
+                                console.log(
+                                    "Gemini:",
+                                    data.text
+                                );
+
+                                return;
+                            }
+
+                            // =================================================
+                            // TURN COMPLETE
+                            // =================================================
+
+                            if (
+                                data.type ===
+                                "TURN_COMPLETE"
+                            ) {
+
+                                console.log(
+                                    "Gemini turn completed."
+                                );
+
+                                /*
+                                 * Do not start microphone here.
+                                 *
+                                 * Backend is responsible for deciding
+                                 * when the candidate's turn begins.
+                                 */
+
+                                return;
+                            }
+
+                            // =================================================
+                            // BACKEND ERROR
+                            // =================================================
+
+                            if (
+                                data.type ===
+                                "ERROR"
+                            ) {
+
+                                console.error(
+                                    "Backend error:",
+                                    data.message
+                                );
+
+                                setStatus(
+                                    data.message ||
+                                    "Backend error"
+                                );
+
+                                return;
+                            }
+
+                        } catch (error) {
+
+                            console.error(
+                                "Backend message error:",
+                                error
+                            );
+                        }
+                    };
+
+                // =================================================
+                // WEBSOCKET ERROR
+                // =================================================
+
+                socket.onerror =
+                    (error) => {
+
                         console.error(
-                            "Backend error:",
-                            data.message
+                            "Backend WebSocket connection failed:",
+                            error
                         );
 
-                        setStatus(data.message);
-                    }
+                        setStatus(
+                            "Backend connection error"
+                        );
+                    };
 
-                } catch (error) {
-                    console.error(
-                        "Backend message error:",
-                        error
-                    );
-                }
-            };
+                // =================================================
+                // WEBSOCKET CLOSED
+                // =================================================
 
-            // ============================================
-            // WEBSOCKET ERROR
-            // ============================================
-            socket.onerror = (error) => {
-                console.error("Backend WebSocket connection failed");
-                setStatus("Backend connection error");
-            };
+                socket.onclose =
+                    (event) => {
 
-            // ============================================
-            // WEBSOCKET CLOSED
-            // ============================================
-            socket.onclose = (event) => {
+                        console.log(
+                            "================================"
+                        );
 
-                console.log("================================");
-                console.log("BACKEND WEBSOCKET CLOSED");
-                console.log("================================");
+                        console.log(
+                            "BACKEND WEBSOCKET CLOSED"
+                        );
 
-                console.log(
-                    "Close code:",
-                    event.code
+                        console.log(
+                            "================================"
+                        );
+
+                        console.log(
+                            "Close code:",
+                            event.code
+                        );
+
+                        console.log(
+                            "Close reason:",
+                            event.reason
+                        );
+
+                        console.log(
+                            "Was clean:",
+                            event.wasClean
+                        );
+
+                        stopMicrophone();
+
+                        setConnected(
+                            false
+                        );
+
+                        setListening(
+                            false
+                        );
+
+                        if (
+                            event.code ===
+                            1009
+                        ) {
+
+                            setStatus(
+                                "Connection closed: audio message too large"
+                            );
+
+                        } else {
+
+                            setStatus(
+                                "Disconnected"
+                            );
+                        }
+                    };
+
+            } catch (error) {
+
+                console.error(
+                    "Voice interview error:",
+                    error
                 );
 
-                console.log(
-                    "Close reason:",
-                    event.reason
+                setStatus(
+                    "Failed to connect"
                 );
+            }
+        };
 
-                console.log(
-                    "Was clean:",
-                    event.wasClean
-                );
+    // =========================================================
+    // STOP VOICE INTERVIEW
+    // =========================================================
 
-                stopMicrophone();
-
-                setConnected(false);
-                setListening(false);
-
-                if (event.code === 1009) {
-                    setStatus(
-                        "Connection closed: audio message too large"
-                    );
-                } else {
-                    setStatus("Disconnected");
-                }
-            };
-
-        } catch (error) {
-            console.error(
-                "Voice interview error:",
-                error
-            );
-
-            setStatus("Failed to connect");
-        }
-    };
-
-
-    // --------------------------------
-    // Stop interview
-    // --------------------------------
     const stopVoiceInterview = () => {
-        stopMicrophone();
-        if (playbackContextRef.current) {
-            playbackContextRef.current.close();
-            playbackContextRef.current = null;
-        }
-        nextAudioTimeRef.current = 0;
-        if (socketRef.current) {
-            socketRef.current.close();
-            socketRef.current = null;
-        }
-        setConnected(false);
-        setListening(false);
-        setStatus("Disconnected");
-    };
-    // --------------------------------
-    // UI
-    // --------------------------------
 
-    const [demoSpeaker, setDemoSpeaker] = useState<"ai" | "user">("ai");
-    const [waveLevels, setWaveLevels] = useState<number[]>(
-        Array.from({ length: 32 }, () => 15)
+        // ---------------------------------------------
+        // Stop microphone
+        // ---------------------------------------------
+
+        stopMicrophone();
+
+        // ---------------------------------------------
+        // Stop Gemini audio playback
+        // ---------------------------------------------
+
+        if (
+            playbackContextRef.current
+        ) {
+
+            playbackContextRef.current.close();
+
+            playbackContextRef.current =
+                null;
+        }
+
+        nextAudioTimeRef.current =
+            0;
+
+        // ---------------------------------------------
+        // Close backend WebSocket
+        // ---------------------------------------------
+
+        if (
+            socketRef.current
+        ) {
+
+            socketRef.current.close();
+
+            socketRef.current =
+                null;
+        }
+
+        setConnected(
+            false
+        );
+
+        setListening(
+            false
+        );
+
+        setStatus(
+            "Disconnected"
+        );
+    };
+
+    // =========================================================
+    // DEMO UI STATE
+    // =========================================================
+
+    const [
+        demoSpeaker,
+        setDemoSpeaker
+    ] = useState<"ai" | "user">("ai");
+
+    const [
+        waveLevels,
+        setWaveLevels
+    ] = useState<number[]>(
+        Array.from(
+            { length: 32 },
+            () => 15
+        )
     );
 
-    /* ================= FAKE SPEAKER SWITCH ================= */
+    // =========================================================
+    // FAKE SPEAKER SWITCH
+    // =========================================================
 
     useEffect(() => {
+
         if (!connected) {
-            setDemoSpeaker("ai");
+
+            setDemoSpeaker(
+                "ai"
+            );
+
             return;
         }
 
-        const speakerInterval = setInterval(() => {
-            setDemoSpeaker((previous) =>
-                previous === "ai" ? "user" : "ai"
-            );
-        }, 4500);
+        const speakerInterval =
+            setInterval(
+                () => {
 
-        return () => clearInterval(speakerInterval);
+                    setDemoSpeaker(
+                        (previous) =>
+                            previous === "ai"
+                                ? "user"
+                                : "ai"
+                    );
+
+                },
+                4500
+            );
+
+        return () =>
+            clearInterval(
+                speakerInterval
+            );
+
     }, [connected]);
 
-
-    /* ================= FAKE LIVE WAVEFORM ================= */
+    // =========================================================
+    // FAKE LIVE WAVEFORM
+    // =========================================================
 
     useEffect(() => {
+
         if (!connected) {
-            setWaveLevels(Array.from({ length: 32 }, () => 4));
+
+            setWaveLevels(
+                Array.from(
+                    { length: 32 },
+                    () => 4
+                )
+            );
+
             return;
         }
 
-        const waveInterval = setInterval(() => {
-            setWaveLevels(
-                Array.from({ length: 32 }, (_, index) => {
-                    const centerBoost =
-                        Math.sin((index / 31) * Math.PI) * 32;
+        const waveInterval =
+            setInterval(
+                () => {
 
-                    const randomBoost =
-                        Math.random() * 28;
+                    setWaveLevels(
+                        Array.from(
+                            {
+                                length: 32,
+                            },
+                            (_, index) => {
 
-                    return Math.max(
-                        5,
-                        Math.round(centerBoost + randomBoost)
+                                const centerBoost =
+                                    Math.sin(
+                                        (index / 31) *
+                                        Math.PI
+                                    ) * 32;
+
+                                const randomBoost =
+                                    Math.random() *
+                                    28;
+
+                                return Math.max(
+                                    5,
+                                    Math.round(
+                                        centerBoost +
+                                        randomBoost
+                                    )
+                                );
+                            }
+                        )
                     );
-                })
-            );
-        }, 140);
 
-        return () => clearInterval(waveInterval);
-    }, [connected, demoSpeaker]);
+                },
+                140
+            );
+
+        return () =>
+            clearInterval(
+                waveInterval
+            );
+
+    }, [
+        connected,
+        demoSpeaker,
+    ]);
+
+    // =========================================================
+    // SETUP SCREEN
+    // =========================================================
 
     if (!started) {
+
         return (
+
             <main
                 className={`${pixelOperator.className} min-h-screen bg-[#d8d8d4] p-3 text-[#3f3025] sm:p-5`}
             >
-                <section className="min-h-[calc(100vh-24px)] overflow-hidden rounded-[24px] border-2 border-[#bda98f] bg-[#efe8d8] shadow-[8px_8px_0_rgba(104,73,50,0.12)] sm:min-h-[calc(100vh-40px)]">
-                    {/* SYSTEM BAR */}
+
+                <section
+                    className="
+                        min-h-[calc(100vh-24px)]
+                        overflow-hidden
+                        rounded-[24px]
+                        border-2
+                        border-[#bda98f]
+                        bg-[#efe8d8]
+                        shadow-[8px_8px_0_rgba(104,73,50,0.12)]
+                        sm:min-h-[calc(100vh-40px)]
+                    "
+                >
+
+                    {/* =================================================
+                        SYSTEM BAR
+                    ================================================= */}
+
                     <SystemBar />
-                    <div className="mx-auto max-w-4xl px-6 py-12 sm:px-10">
+
+                    <div
+                        className="
+                            mx-auto
+                            max-w-4xl
+                            px-6
+                            py-12
+                            sm:px-10
+                        "
+                    >
+
                         {/* SYSTEM LABEL */}
-                        <p className="mb-4 text-[11px] tracking-[0.2em] text-[#806754]">
-                        // VOICE INTERVIEW MODULE
+
+                        <p
+                            className="
+                                mb-4
+                                text-[11px]
+                                tracking-[0.2em]
+                                text-[#806754]
+                            "
+                        >
+                            // VOICE INTERVIEW MODULE
                         </p>
+
                         {/* TITLE */}
-                        <h1 className="text-[38px] leading-tight tracking-[0.06em] text-[#473226] sm:text-[52px]">
+
+                        <h1
+                            className="
+                                text-[38px]
+                                leading-tight
+                                tracking-[0.06em]
+                                text-[#473226]
+                                sm:text-[52px]
+                            "
+                        >
                             READY TO
                             <br />
                             SPEAK._
                         </h1>
+
                         {/* DESCRIPTION */}
-                        <p className="mt-5 max-w-xl text-[14px] leading-7 tracking-[0.04em] text-[#806754]">
-                            Configure your voice interview session before connecting
-                            to the AI interviewer. Select your subject, difficulty
-                            and interview preferences to initialize the voice channel.
+
+                        <p
+                            className="
+                                mt-5
+                                max-w-xl
+                                text-[14px]
+                                leading-7
+                                tracking-[0.04em]
+                                text-[#806754]
+                            "
+                        >
+                            Configure your voice interview
+                            session before connecting to the
+                            AI interviewer. Select your subject,
+                            difficulty and interview preferences
+                            to initialize the voice channel.
                         </p>
-                        {/* SETUP TERMINAL */}
-                        <div className="mt-10 overflow-hidden rounded-xl border-2 border-[#684932] bg-[#f3ead9] shadow-[5px_5px_0_rgba(104,73,50,0.15)]">
+
+                        {/* =================================================
+                            SETUP TERMINAL
+                        ================================================= */}
+
+                        <div
+                            className="
+                                mt-10
+                                overflow-hidden
+                                rounded-xl
+                                border-2
+                                border-[#684932]
+                                bg-[#f3ead9]
+                                shadow-[5px_5px_0_rgba(104,73,50,0.15)]
+                            "
+                        >
+
                             {/* TERMINAL HEADER */}
-                            <div className="flex items-center justify-between border-b-2 border-[#b49a7f] bg-[#f7eddb] px-6 py-4">
+
+                            <div
+                                className="
+                                    flex
+                                    items-center
+                                    justify-between
+                                    border-b-2
+                                    border-[#b49a7f]
+                                    bg-[#f7eddb]
+                                    px-6
+                                    py-4
+                                "
+                            >
+
                                 <div>
-                                    <p className="text-[11px] tracking-[0.18em] text-[#5c4331]">
+
+                                    <p
+                                        className="
+                                            text-[11px]
+                                            tracking-[0.18em]
+                                            text-[#5c4331]
+                                        "
+                                    >
                                         VOICE SESSION CONFIGURATION
                                     </p>
-                                    <p className="mt-1 text-[8px] tracking-[0.14em] text-[#806754]">
-                                    // INITIALIZE COMMUNICATION CHANNEL
+
+                                    <p
+                                        className="
+                                            mt-1
+                                            text-[8px]
+                                            tracking-[0.14em]
+                                            text-[#806754]
+                                        "
+                                    >
+                                        // INITIALIZE COMMUNICATION
+                                        CHANNEL
                                     </p>
+
                                 </div>
-                                <div className="flex items-center gap-3">
-                                    <span className="text-[9px] tracking-[0.14em] text-[#806754]">
-                                        READY
+
+                                {/* MIC STATUS */}
+
+                                <div
+                                    className="
+                                        flex
+                                        items-center
+                                        gap-3
+                                    "
+                                >
+
+                                    <span
+                                        className="
+                                            text-[9px]
+                                            tracking-[0.14em]
+                                            text-[#806754]
+                                        "
+                                    >
+                                        {micPermission ===
+                                            "granted"
+                                            ? "MIC READY"
+                                            : micPermission ===
+                                                "denied"
+                                                ? "MIC BLOCKED"
+                                                : "MIC REQUIRED"}
                                     </span>
-                                    <span className="h-3 w-3 animate-pulse rounded-full border border-[#684932] bg-[#39a38e]" />
+
+                                    <span
+                                        className={`
+                                            h-3
+                                            w-3
+                                            rounded-full
+                                            border
+                                            border-[#684932]
+                                            ${micPermission ===
+                                                "granted"
+                                                ? "animate-pulse bg-[#39a38e]"
+                                                : micPermission ===
+                                                    "denied"
+                                                    ? "bg-[#e98782]"
+                                                    : "bg-[#f4c97d]"
+                                            }
+                                        `}
+                                    />
+
                                 </div>
+
                             </div>
-                            {/* TERMINAL CONTENT */}
-                            <div className="p-6 sm:p-8">
+
+                            {/* =================================================
+                                TERMINAL CONTENT
+                            ================================================= */}
+
+                            <div
+                                className="
+                                    p-6
+                                    sm:p-8
+                                "
+                            >
+
+                                {/* =================================================
+                                    MICROPHONE PERMISSION PANEL
+                                ================================================= */}
+
+                                <div
+                                    className="
+                                        mb-8
+                                        border-2
+                                        border-[#b49a7f]
+                                        bg-[#f7eddb]
+                                        p-5
+                                    "
+                                >
+
+                                    <p
+                                        className="
+                                            text-[10px]
+                                            tracking-[0.18em]
+                                            text-[#806754]
+                                        "
+                                    >
+                                        MICROPHONE ACCESS
+                                    </p>
+
+                                    <p
+                                        className="
+                                            mt-3
+                                            text-[12px]
+                                            leading-6
+                                            tracking-[0.04em]
+                                            text-[#4a362a]
+                                        "
+                                    >
+                                        Voice interviews require
+                                        microphone access so the
+                                        AI interviewer can hear
+                                        your answers. Permission
+                                        will be requested when
+                                        you start the interview.
+                                    </p>
+
+                                    {/* STATUS */}
+
+                                    <div
+                                        className="
+                                            mt-4
+                                            flex
+                                            items-center
+                                            gap-3
+                                        "
+                                    >
+
+                                        <span
+                                            className={`
+                                                h-3
+                                                w-3
+                                                rounded-full
+                                                border
+                                                border-[#684932]
+                                                ${micPermission ===
+                                                    "granted"
+                                                    ? "bg-[#39a38e]"
+                                                    : micPermission ===
+                                                        "denied"
+                                                        ? "bg-[#e98782]"
+                                                        : "bg-[#f4c97d]"
+                                                }
+                                            `}
+                                        />
+
+                                        <p
+                                            className="
+                                                text-[10px]
+                                                tracking-[0.12em]
+                                                text-[#806754]
+                                            "
+                                        >
+                                            {micPermission ===
+                                                "granted"
+                                                ? "MICROPHONE ACCESS GRANTED"
+                                                : micPermission ===
+                                                    "denied"
+                                                    ? "MICROPHONE ACCESS DENIED"
+                                                    : "MICROPHONE PERMISSION REQUIRED"}
+                                        </p>
+
+                                    </div>
+
+                                    {/* DENIED MESSAGE */}
+
+                                    {micPermission ===
+                                        "denied" && (
+
+                                            <p
+                                                className="
+                                                mt-4
+                                                text-[10px]
+                                                leading-5
+                                                tracking-[0.04em]
+                                                text-[#a64f4b]
+                                            "
+                                            >
+                                                Allow microphone access
+                                                in your browser, then
+                                                press Start Interview
+                                                again.
+                                            </p>
+
+                                        )}
+
+                                </div>
+
+                                {/* =================================================
+                                    INTERVIEW SETUP
+                                ================================================= */}
+
                                 <InterviewSetup
-                                    onStart={handleStartSetup}
+                                    onStart={
+                                        handleStartSetup
+                                    }
                                 />
+
                             </div>
-                            {/* TERMINAL FOOTER */}
-                            <div className="flex items-center justify-between border-t-2 border-[#b49a7f] bg-[#f7eddb] px-6 py-4 text-[8px] tracking-[0.14em] text-[#806754]">
-                                <span>INPUT: MICROPHONE</span>
-                                <span>OUTPUT: AI VOICE</span>
-                                <span>CHANNEL: STANDBY</span>
+
+                            {/* =================================================
+                                TERMINAL FOOTER
+                            ================================================= */}
+
+                            <div
+                                className="
+                                    flex
+                                    items-center
+                                    justify-between
+                                    border-t-2
+                                    border-[#b49a7f]
+                                    bg-[#f7eddb]
+                                    px-6
+                                    py-4
+                                    text-[8px]
+                                    tracking-[0.14em]
+                                    text-[#806754]
+                                "
+                            >
+
+                                <span>
+                                    INPUT: MIC{" "}
+                                    {micPermission ===
+                                        "granted" &&
+                                        "✓"}
+                                </span>
+
+                                <span>
+                                    OUTPUT: AI VOICE
+                                </span>
+
+                                <span>
+                                    {micPermission ===
+                                        "granted"
+                                        ? "MIC: GRANTED"
+                                        : micPermission ===
+                                            "denied"
+                                            ? "MIC: REQUIRED"
+                                            : "MIC: ACCESS REQUIRED"}
+                                </span>
+
                             </div>
+
                         </div>
+
                     </div>
+
                 </section>
+
             </main>
         );
     }
 
+    // =========================================================
+    // LIVE INTERVIEW SCREEN
+    // =========================================================
+
     return (
+
         <main
             className={`${pixelOperator.className} min-h-screen bg-[#d8d8d4] p-3 text-[#3f3025] sm:p-5`}
         >
-            <section className="min-h-[calc(100vh-24px)] overflow-hidden rounded-[24px] border-2 border-[#bda98f] bg-[#efe8d8] shadow-[8px_8px_0_rgba(104,73,50,0.12)] sm:min-h-[calc(100vh-40px)]">
 
-                {/* ================= SYSTEM BAR ================= */}
+            <section
+                className="
+                    min-h-[calc(100vh-24px)]
+                    overflow-hidden
+                    rounded-[24px]
+                    border-2
+                    border-[#bda98f]
+                    bg-[#efe8d8]
+                    shadow-[8px_8px_0_rgba(104,73,50,0.12)]
+                    sm:min-h-[calc(100vh-40px)]
+                "
+            >
+
+                {/* =================================================
+                    SYSTEM BAR
+                ================================================= */}
+
                 <SystemBar />
 
-                {/* ================= PAGE ================= */}
-                <div className="relative mx-auto flex min-h-[calc(100vh-80px)] max-w-6xl items-center justify-center px-6 py-10 sm:px-10">
+                {/* =================================================
+                    PAGE
+                ================================================= */}
+
+                <div
+                    className="
+                        relative
+                        mx-auto
+                        flex
+                        min-h-[calc(100vh-80px)]
+                        max-w-6xl
+                        items-center
+                        justify-center
+                        px-6
+                        py-10
+                        sm:px-10
+                    "
+                >
 
                     {/* BACKGROUND LIGHT */}
-                    <div className="pointer-events-none absolute left-[10%] top-[20%] h-44 w-44 rounded-full bg-[#f4c97d]/20 blur-3xl" />
 
-                    <div className="pointer-events-none absolute bottom-[15%] right-[10%] h-52 w-52 rounded-full bg-[#3c9aaa]/15 blur-3xl" />
+                    <div
+                        className="
+                            pointer-events-none
+                            absolute
+                            left-[10%]
+                            top-[20%]
+                            h-44
+                            w-44
+                            rounded-full
+                            bg-[#f4c97d]/20
+                            blur-3xl
+                        "
+                    />
 
+                    <div
+                        className="
+                            pointer-events-none
+                            absolute
+                            bottom-[15%]
+                            right-[10%]
+                            h-52
+                            w-52
+                            rounded-full
+                            bg-[#3c9aaa]/15
+                            blur-3xl
+                        "
+                    />
 
-                    <div className="relative z-10 grid w-full items-center gap-12 lg:grid-cols-[0.85fr_1.3fr_0.85fr]">
+                    <div
+                        className="
+                            relative
+                            z-10
+                            grid
+                            w-full
+                            items-center
+                            gap-12
+                            lg:grid-cols-[0.85fr_1.3fr_0.85fr]
+                        "
+                    >
 
-                        {/* ================================================= */}
-                        {/* LEFT INFORMATION */}
-                        {/* ================================================= */}
+                        {/* =================================================
+                            LEFT INFORMATION
+                        ================================================= */}
 
-                        <div className="order-2 lg:order-1">
+                        <div
+                            className="
+                                order-2
+                                lg:order-1
+                            "
+                        >
 
-                            <p className="text-[10px] tracking-[0.2em] text-[#806754]">
-              // VOICE COMMUNICATION MODULE
+                            <p
+                                className="
+                                    text-[10px]
+                                    tracking-[0.2em]
+                                    text-[#806754]
+                                "
+                            >
+                                // VOICE COMMUNICATION MODULE
                             </p>
 
-                            <h1 className="mt-5 text-[32px] leading-[1.3] tracking-[0.1em] text-[#473226] sm:text-[40px]">
+                            <h1
+                                className="
+                                    mt-5
+                                    text-[32px]
+                                    leading-[1.3]
+                                    tracking-[0.1em]
+                                    text-[#473226]
+                                    sm:text-[40px]
+                                "
+                            >
                                 SPEAK.
                                 <br />
                                 LISTEN.
@@ -494,56 +1688,158 @@ export default function VoiceInterviewPage() {
                                 RESPOND._
                             </h1>
 
-                            <div className="mt-8 border-l-[3px] border-[#3c9aaa] pl-4">
+                            <div
+                                className="
+                                    mt-8
+                                    border-l-[3px]
+                                    border-[#3c9aaa]
+                                    pl-4
+                                "
+                            >
 
-                                <p className="text-[10px] tracking-[0.16em] text-[#806754]">
+                                <p
+                                    className="
+                                        text-[10px]
+                                        tracking-[0.16em]
+                                        text-[#806754]
+                                    "
+                                >
                                     REAL-TIME AI INTERVIEW
                                 </p>
 
-                                <p className="mt-3 text-[13px] leading-7 tracking-[0.04em] text-[#725e4d]">
-                                    Speak naturally with your AI interviewer.
-                                    Watch the live signal as the conversation
-                                    moves between interviewer and candidate.
+                                <p
+                                    className="
+                                        mt-3
+                                        text-[13px]
+                                        leading-7
+                                        tracking-[0.04em]
+                                        text-[#725e4d]
+                                    "
+                                >
+                                    Speak naturally with your AI
+                                    interviewer. Watch the live
+                                    signal as the conversation
+                                    moves between interviewer and
+                                    candidate.
                                 </p>
 
                             </div>
 
                             {/* CURRENT STATUS */}
-                            <div className="mt-9 border border-[#b49a7f] bg-[#f7eddb]/70 p-4">
-                                <p className="text-[9px] tracking-[0.16em] text-[#806754]">
+
+                            <div
+                                className="
+                                    mt-9
+                                    border
+                                    border-[#b49a7f]
+                                    bg-[#f7eddb]/70
+                                    p-4
+                                "
+                            >
+
+                                <p
+                                    className="
+                                        text-[9px]
+                                        tracking-[0.16em]
+                                        text-[#806754]
+                                    "
+                                >
                                     SYSTEM STATUS
                                 </p>
-                                <div className="mt-3 flex items-center gap-3">
+
+                                <div
+                                    className="
+                                        mt-3
+                                        flex
+                                        items-center
+                                        gap-3
+                                    "
+                                >
+
                                     <span
-                                        className={`h-3 w-3 rounded-full border border-[#684932] ${connected
-                                            ? "animate-pulse bg-[#39a38e]"
-                                            : "bg-[#e98782]"
-                                            }`}
+                                        className={`
+                                            h-3
+                                            w-3
+                                            rounded-full
+                                            border
+                                            border-[#684932]
+                                            ${connected
+                                                ? "animate-pulse bg-[#39a38e]"
+                                                : "bg-[#e98782]"
+                                            }
+                                        `}
                                     />
-                                    <p className="text-[11px] tracking-[0.12em] text-[#4a362a]">
+
+                                    <p
+                                        className="
+                                            text-[11px]
+                                            tracking-[0.12em]
+                                            text-[#4a362a]
+                                        "
+                                    >
                                         {connected
-                                            ? demoSpeaker === "ai"
+                                            ? demoSpeaker ===
+                                                "ai"
                                                 ? "AI SIGNAL ACTIVE"
                                                 : "USER SIGNAL ACTIVE"
                                             : "SYSTEM STANDBY"}
                                     </p>
+
                                 </div>
+
                             </div>
+
                         </div>
 
-                        {/* ================================================= */}
-                        {/* CENTER RETRO COMPUTER */}
-                        {/* ================================================= */}
+                        {/* =================================================
+                            CENTER RETRO COMPUTER
+                        ================================================= */}
 
-                        <div className="order-1 flex flex-col items-center lg:order-2">
+                        <div
+                            className="
+                                order-1
+                                flex
+                                flex-col
+                                items-center
+                                lg:order-2
+                            "
+                        >
 
-                            <div className="relative w-full max-w-[470px]">
+                            <div
+                                className="
+                                    relative
+                                    w-full
+                                    max-w-[470px]
+                                "
+                            >
 
                                 {/* GROUND SHADOW */}
-                                <div className="pointer-events-none absolute bottom-[3%] left-1/2 z-0 h-14 w-[72%] -translate-x-1/2 rounded-full bg-[#684932]/20 blur-2xl" />
+
+                                <div
+                                    className="
+                                        pointer-events-none
+                                        absolute
+                                        bottom-[3%]
+                                        left-1/2
+                                        z-0
+                                        h-14
+                                        w-[72%]
+                                        -translate-x-1/2
+                                        rounded-full
+                                        bg-[#684932]/20
+                                        blur-2xl
+                                    "
+                                />
 
                                 {/* COMPUTER */}
-                                <div className="relative z-10 w-full">
+
+                                <div
+                                    className="
+                                        relative
+                                        z-10
+                                        w-full
+                                    "
+                                >
 
                                     <Image
                                         src="/image_cleanup.png"
@@ -554,225 +1850,525 @@ export default function VoiceInterviewPage() {
                                     />
 
                                     {/* CRT SCREEN CONTENT */}
-                                    <div className=" absolute left-[20%] top-[15%] z-20 h-[43%] w-[55%] overflow-hidden rounded-[24px] "
+
+                                    <div
+                                        className="
+                                            absolute
+                                            left-[20%]
+                                            top-[15%]
+                                            z-20
+                                            h-[43%]
+                                            w-[55%]
+                                            overflow-hidden
+                                            rounded-[24px]
+                                        "
                                     >
+
                                         {/* CRT DARK TINT */}
-                                        <div className="pointer-events-none absolute inset-0 bg-[#171918]/10" />
+
+                                        <div
+                                            className="
+                                                pointer-events-none
+                                                absolute
+                                                inset-0
+                                                bg-[#171918]/10
+                                            "
+                                        />
+
                                         {/* CRT GLOW */}
-                                        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.05),transparent_65%)]" />
+
+                                        <div
+                                            className="
+                                                pointer-events-none
+                                                absolute
+                                                inset-0
+                                                bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.05),transparent_65%)]
+                                            "
+                                        />
+
                                         {/* SCREEN CONTENT */}
-                                        <div className="relative z-10 flex h-full flex-col justify-between p-[8%]">
+
+                                        <div
+                                            className="
+                                                relative
+                                                z-10
+                                                flex
+                                                h-full
+                                                flex-col
+                                                justify-between
+                                                p-[8%]
+                                            "
+                                        >
+
                                             {/* TOP DOTS */}
-                                            <div className="flex gap-1.5">
-                                                <span className="h-1 w-1 rounded-full bg-[#d5d2ca]/80" />
-                                                <span className="h-1 w-1 rounded-full bg-[#d5d2ca]/60" />
-                                                <span className="h-1 w-1 rounded-full bg-[#d5d2ca]/40" />
+
+                                            <div
+                                                className="
+                                                    flex
+                                                    gap-1.5
+                                                "
+                                            >
+
+                                                <span
+                                                    className="
+                                                        h-1
+                                                        w-1
+                                                        rounded-full
+                                                        bg-[#d5d2ca]/80
+                                                    "
+                                                />
+
+                                                <span
+                                                    className="
+                                                        h-1
+                                                        w-1
+                                                        rounded-full
+                                                        bg-[#d5d2ca]/60
+                                                    "
+                                                />
+
+                                                <span
+                                                    className="
+                                                        h-1
+                                                        w-1
+                                                        rounded-full
+                                                        bg-[#d5d2ca]/40
+                                                    "
+                                                />
+
                                             </div>
 
                                             {/* ACTIVE SPEAKER */}
-                                            <div className="mt-auto">
+
+                                            <div
+                                                className="
+                                                    mt-auto
+                                                "
+                                            >
 
                                                 <p
-                                                    className={`text-[7px] tracking-[0.16em] sm:text-[9px] ${!connected
-                                                        ? "text-[#777872]"
-                                                        : demoSpeaker === "ai"
-                                                            ? "text-[#3c9aaa]"
-                                                            : "text-[#f4c97d]"
-                                                        }`}
+                                                    className={`
+                                                        text-[7px]
+                                                        tracking-[0.16em]
+                                                        sm:text-[9px]
+                                                        ${!connected
+                                                            ? "text-[#777872]"
+                                                            : demoSpeaker ===
+                                                                "ai"
+                                                                ? "text-[#3c9aaa]"
+                                                                : "text-[#f4c97d]"
+                                                        }
+                                                    `}
                                                 >
                                                     {!connected
                                                         ? "SYSTEM STANDBY"
-                                                        : demoSpeaker === "ai"
+                                                        : demoSpeaker ===
+                                                            "ai"
                                                             ? "AI INTERVIEWER"
                                                             : "USER SPEAKING"}
                                                 </p>
 
                                                 {/* WAVEFORM */}
-                                                <div className="mt-[8%] flex h-[30%] items-center justify-center gap-[2px] sm:gap-[3px]">
 
-                                                    {waveLevels.map((height, index) => (
-                                                        <span
-                                                            key={index}
-                                                            className={`w-[2px] rounded-full sm:w-[3px] ${!connected
-                                                                ? "bg-[#555652]"
-                                                                : demoSpeaker === "ai"
-                                                                    ? "bg-[#3c9aaa]"
-                                                                    : "bg-[#f4c97d]"
-                                                                }`}
-                                                            style={{
-                                                                height: `${connected
-                                                                    ? Math.max(4, height * 0.7)
-                                                                    : index % 4 === 0
-                                                                        ? 9
-                                                                        : 3
-                                                                    }px`,
-                                                            }}
-                                                        />
-                                                    ))}
+                                                <div
+                                                    className="
+                                                        mt-[8%]
+                                                        flex
+                                                        h-[30%]
+                                                        items-center
+                                                        justify-center
+                                                        gap-[2px]
+                                                        sm:gap-[3px]
+                                                    "
+                                                >
+
+                                                    {waveLevels.map(
+                                                        (
+                                                            height,
+                                                            index
+                                                        ) => (
+
+                                                            <span
+                                                                key={
+                                                                    index
+                                                                }
+                                                                className={`
+                                                                    w-[2px]
+                                                                    rounded-full
+                                                                    sm:w-[3px]
+                                                                    ${!connected
+                                                                        ? "bg-[#555652]"
+                                                                        : demoSpeaker ===
+                                                                            "ai"
+                                                                            ? "bg-[#3c9aaa]"
+                                                                            : "bg-[#f4c97d]"
+                                                                    }
+                                                                `}
+                                                                style={{
+                                                                    height:
+                                                                        `${connected
+                                                                            ? Math.max(
+                                                                                4,
+                                                                                height *
+                                                                                0.7
+                                                                            )
+                                                                            : index %
+                                                                                4 ===
+                                                                                0
+                                                                                ? 9
+                                                                                : 3
+                                                                        }px`,
+                                                                }}
+                                                            />
+
+                                                        )
+                                                    )}
 
                                                 </div>
 
                                                 {/* STATUS */}
-                                                <div className="mt-[6%] flex items-center justify-between">
 
-                                                    <p className="text-[7px] tracking-[0.12em] text-[#d8d5cc] sm:text-[9px]">
+                                                <div
+                                                    className="
+                                                        mt-[6%]
+                                                        flex
+                                                        items-center
+                                                        justify-between
+                                                    "
+                                                >
+
+                                                    <p
+                                                        className="
+                                                            text-[7px]
+                                                            tracking-[0.12em]
+                                                            text-[#d8d5cc]
+                                                            sm:text-[9px]
+                                                        "
+                                                    >
                                                         {connected
-                                                            ? demoSpeaker === "ai"
+                                                            ? demoSpeaker ===
+                                                                "ai"
                                                                 ? "AI ACTIVE"
                                                                 : "USER ACTIVE"
                                                             : "WAITING"}
                                                     </p>
 
                                                     <span
-                                                        className={`h-1.5 w-1.5 rounded-full ${connected
-                                                            ? demoSpeaker === "ai"
-                                                                ? "animate-pulse bg-[#3c9aaa]"
-                                                                : "animate-pulse bg-[#f4c97d]"
-                                                            : "bg-[#555652]"
-                                                            }`}
+                                                        className={`
+                                                            h-1.5
+                                                            w-1.5
+                                                            rounded-full
+                                                            ${connected
+                                                                ? demoSpeaker ===
+                                                                    "ai"
+                                                                    ? "animate-pulse bg-[#3c9aaa]"
+                                                                    : "animate-pulse bg-[#f4c97d]"
+                                                                : "bg-[#555652]"
+                                                            }
+                                                        `}
                                                     />
 
                                                 </div>
+
                                             </div>
 
                                             {/* SCREEN FOOTER */}
-                                            <div className="flex items-end justify-between">
 
-                                                <p className="text-[5px] tracking-[0.1em] text-[#888984] sm:text-[7px]">
+                                            <div
+                                                className="
+                                                    flex
+                                                    items-end
+                                                    justify-between
+                                                "
+                                            >
+
+                                                <p
+                                                    className="
+                                                        text-[5px]
+                                                        tracking-[0.1em]
+                                                        text-[#888984]
+                                                        sm:text-[7px]
+                                                    "
+                                                >
                                                     {connected
-                                                        ? demoSpeaker === "ai"
+                                                        ? demoSpeaker ===
+                                                            "ai"
                                                             ? "VOICE OUTPUT..."
                                                             : "VOICE INPUT..."
                                                         : "WAITING..."}
                                                 </p>
 
-                                                <p className="text-[5px] tracking-[0.1em] text-[#aaa9a3] sm:text-[7px]">
+                                                <p
+                                                    className="
+                                                        text-[5px]
+                                                        tracking-[0.1em]
+                                                        text-[#aaa9a3]
+                                                        sm:text-[7px]
+                                                    "
+                                                >
                                                     &gt;&gt; V1.0
                                                 </p>
 
                                             </div>
 
                                         </div>
+
                                     </div>
+
                                 </div>
+
                             </div>
 
-                            <p className="mt-5 text-[9px] tracking-[0.16em] text-[#806754]">
+                            <p
+                                className="
+                                    mt-5
+                                    text-[9px]
+                                    tracking-[0.16em]
+                                    text-[#806754]
+                                "
+                            >
                                 LIVE CONVERSATION SIGNAL
                             </p>
 
                         </div>
 
+                        {/* =================================================
+                            RIGHT CONTROL PANEL
+                        ================================================= */}
 
-                        {/* ================================================= */}
-                        {/* RIGHT CONTROL PANEL */}
-                        {/* ================================================= */}
+                        <div
+                            className="
+                                order-3
+                            "
+                        >
 
-                        <div className="order-3">
-
-                            <div className="border-2 border-[#684932] bg-[#f3ead9] shadow-[5px_5px_0_rgba(104,73,50,0.16)]">
+                            <div
+                                className="
+                                    border-2
+                                    border-[#684932]
+                                    bg-[#f3ead9]
+                                    shadow-[5px_5px_0_rgba(104,73,50,0.16)]
+                                "
+                            >
 
                                 {/* PANEL HEADER */}
 
-                                <div className="border-b-2 border-[#b49a7f] bg-[#f7eddb] px-5 py-4">
+                                <div
+                                    className="
+                                        border-b-2
+                                        border-[#b49a7f]
+                                        bg-[#f7eddb]
+                                        px-5
+                                        py-4
+                                    "
+                                >
 
-                                    <p className="text-[9px] tracking-[0.18em] text-[#806754]">
+                                    <p
+                                        className="
+                                            text-[9px]
+                                            tracking-[0.18em]
+                                            text-[#806754]
+                                        "
+                                    >
                                         SESSION CONTROL
                                     </p>
 
-                                    <p className="mt-2 text-[17px] tracking-[0.1em] text-[#473226]">
+                                    <p
+                                        className="
+                                            mt-2
+                                            text-[17px]
+                                            tracking-[0.1em]
+                                            text-[#473226]
+                                        "
+                                    >
                                         VOICE CHANNEL._
                                     </p>
 
                                 </div>
 
-
                                 {/* PANEL CONTENT */}
 
-                                <div className="p-5">
+                                <div
+                                    className="
+                                        p-5
+                                    "
+                                >
 
-                                    <div className="border-l-[3px] border-[#684932] pl-4">
+                                    {/* CURRENT STATE */}
 
-                                        <p className="text-[9px] tracking-[0.16em] text-[#806754]">
+                                    <div
+                                        className="
+                                            border-l-[3px]
+                                            border-[#684932]
+                                            pl-4
+                                        "
+                                    >
+
+                                        <p
+                                            className="
+                                                text-[9px]
+                                                tracking-[0.16em]
+                                                text-[#806754]
+                                            "
+                                        >
                                             CURRENT STATE
                                         </p>
 
-                                        <p className="mt-3 text-[13px] tracking-[0.08em] text-[#4a362a]">
+                                        <p
+                                            className="
+                                                mt-3
+                                                text-[13px]
+                                                tracking-[0.08em]
+                                                text-[#4a362a]
+                                            "
+                                        >
                                             {!connected
                                                 ? "READY TO CONNECT"
-                                                : demoSpeaker === "ai"
+                                                : demoSpeaker ===
+                                                    "ai"
                                                     ? "AI IS SPEAKING"
                                                     : "YOUR TURN TO SPEAK"}
                                         </p>
 
                                     </div>
 
-
                                     {/* SMALL WAVE */}
 
-                                    <div className="mt-7 flex h-10 items-center gap-[3px]">
+                                    <div
+                                        className="
+                                            mt-7
+                                            flex
+                                            h-10
+                                            items-center
+                                            gap-[3px]
+                                        "
+                                    >
 
-                                        {waveLevels.slice(0, 20).map((height, index) => (
-                                            <span
-                                                key={index}
-                                                className={`w-[2px] transition-all duration-150 ${connected
-                                                    ? demoSpeaker === "ai"
-                                                        ? "bg-[#3c9aaa]"
-                                                        : "bg-[#f4c97d]"
-                                                    : "bg-[#b49a7f]"
-                                                    }`}
-                                                style={{
-                                                    height: `${connected
-                                                        ? Math.max(4, Math.round(height * 0.55))
-                                                        : 4
-                                                        }px`,
-                                                }}
-                                            />
-                                        ))}
+                                        {waveLevels
+                                            .slice(
+                                                0,
+                                                20
+                                            )
+                                            .map(
+                                                (
+                                                    height,
+                                                    index
+                                                ) => (
+
+                                                    <span
+                                                        key={
+                                                            index
+                                                        }
+                                                        className={`
+                                                            w-[2px]
+                                                            transition-all
+                                                            duration-150
+                                                            ${connected
+                                                                ? demoSpeaker ===
+                                                                    "ai"
+                                                                    ? "bg-[#3c9aaa]"
+                                                                    : "bg-[#f4c97d]"
+                                                                : "bg-[#b49a7f]"
+                                                            }
+                                                        `}
+                                                        style={{
+                                                            height:
+                                                                `${connected
+                                                                    ? Math.max(
+                                                                        4,
+                                                                        Math.round(
+                                                                            height *
+                                                                            0.55
+                                                                        )
+                                                                    )
+                                                                    : 4
+                                                                }px`,
+                                                        }}
+                                                    />
+
+                                                )
+                                            )}
 
                                     </div>
 
-
                                     {/* STATUS */}
 
-                                    <div className="mt-8 border-t border-[#b49a7f] pt-5">
+                                    <div
+                                        className="
+                                            mt-8
+                                            border-t
+                                            border-[#b49a7f]
+                                            pt-5
+                                        "
+                                    >
 
-                                        <p className="text-[9px] tracking-[0.16em] text-[#806754]">
+                                        <p
+                                            className="
+                                                text-[9px]
+                                                tracking-[0.16em]
+                                                text-[#806754]
+                                            "
+                                        >
                                             SYSTEM MESSAGE
                                         </p>
 
-                                        <p className="mt-3 text-[11px] leading-6 tracking-[0.06em] text-[#4a362a]">
+                                        <p
+                                            className="
+                                                mt-3
+                                                text-[11px]
+                                                leading-6
+                                                tracking-[0.06em]
+                                                text-[#4a362a]
+                                            "
+                                        >
                                             {status.toUpperCase()}
                                         </p>
 
                                     </div>
 
-
                                     {/* BUTTON */}
 
-                                    <div className="mt-8">
+                                    <div
+                                        className="
+                                            mt-8
+                                        "
+                                    >
 
                                         {!connected ? (
 
                                             <button
-                                                onClick={startVoiceInterview}
+                                                onClick={() => {
+
+                                                    if (!config) {
+                                                        return;
+                                                    }
+
+                                                    startVoiceInterview(
+                                                        config
+                                                    );
+                                                }}
+                                                disabled={
+                                                    !config
+                                                }
                                                 className="
-                        w-full
-                        border-2
-                        border-[#684932]
-                        bg-[#f4c97d]
-                        px-5
-                        py-4
-                        text-[11px]
-                        tracking-[0.16em]
-                        text-[#473226]
-                        shadow-[4px_4px_0_rgba(104,73,50,0.22)]
-                        transition-all
-                        hover:-translate-y-1
-                        hover:bg-[#ffd993]
-                        active:translate-y-0
-                        active:shadow-none
-                      "
+                                                    w-full
+                                                    border-2
+                                                    border-[#684932]
+                                                    bg-[#f4c97d]
+                                                    px-5
+                                                    py-4
+                                                    text-[11px]
+                                                    tracking-[0.16em]
+                                                    text-[#473226]
+                                                    shadow-[4px_4px_0_rgba(104,73,50,0.22)]
+                                                    transition-all
+                                                    hover:-translate-y-1
+                                                    hover:bg-[#ffd993]
+                                                    active:translate-y-0
+                                                    active:shadow-none
+                                                    disabled:cursor-not-allowed
+                                                    disabled:opacity-50
+                                                "
                                             >
                                                 &gt; START SESSION
                                             </button>
@@ -780,24 +2376,26 @@ export default function VoiceInterviewPage() {
                                         ) : (
 
                                             <button
-                                                onClick={stopVoiceInterview}
+                                                onClick={
+                                                    stopVoiceInterview
+                                                }
                                                 className="
-                        w-full
-                        border-2
-                        border-[#684932]
-                        bg-[#e98782]
-                        px-5
-                        py-4
-                        text-[11px]
-                        tracking-[0.16em]
-                        text-[#473226]
-                        shadow-[4px_4px_0_rgba(104,73,50,0.22)]
-                        transition-all
-                        hover:-translate-y-1
-                        hover:bg-[#f09b96]
-                        active:translate-y-0
-                        active:shadow-none
-                      "
+                                                    w-full
+                                                    border-2
+                                                    border-[#684932]
+                                                    bg-[#e98782]
+                                                    px-5
+                                                    py-4
+                                                    text-[11px]
+                                                    tracking-[0.16em]
+                                                    text-[#473226]
+                                                    shadow-[4px_4px_0_rgba(104,73,50,0.22)]
+                                                    transition-all
+                                                    hover:-translate-y-1
+                                                    hover:bg-[#f09b96]
+                                                    active:translate-y-0
+                                                    active:shadow-none
+                                                "
                                             >
                                                 ■ END SESSION
                                             </button>
@@ -808,16 +2406,35 @@ export default function VoiceInterviewPage() {
 
                                 </div>
 
-
                                 {/* PANEL FOOTER */}
 
-                                <div className="border-t-2 border-[#b49a7f] bg-[#f7eddb] px-5 py-4">
+                                <div
+                                    className="
+                                        border-t-2
+                                        border-[#b49a7f]
+                                        bg-[#f7eddb]
+                                        px-5
+                                        py-4
+                                    "
+                                >
 
-                                    <div className="flex justify-between text-[8px] tracking-[0.14em] text-[#806754]">
+                                    <div
+                                        className="
+                                            flex
+                                            justify-between
+                                            text-[8px]
+                                            tracking-[0.14em]
+                                            text-[#806754]
+                                        "
+                                    >
 
-                                        <span>INPUT: MIC</span>
+                                        <span>
+                                            INPUT: MIC
+                                        </span>
 
-                                        <span>OUTPUT: AI</span>
+                                        <span>
+                                            OUTPUT: AI
+                                        </span>
 
                                     </div>
 
@@ -832,6 +2449,7 @@ export default function VoiceInterviewPage() {
                 </div>
 
             </section>
+
         </main>
     );
 }

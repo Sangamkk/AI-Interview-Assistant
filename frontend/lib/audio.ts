@@ -9,11 +9,16 @@ export const arrayBufferToBase64 = (buffer: ArrayBuffer): string => {
     return btoa(binary);
 };
 
-export const playGeminiAudio = (base64Audio: string, playbackContextRef: {current:AudioContext | null;}, nextAudioTimeRef: {current:number}) => {
+export const playGeminiAudio = (base64Audio: string, playbackContextRef: { current: AudioContext | null; }, nextAudioTimeRef: { current: number }) => {
     if (!playbackContextRef.current) {
         playbackContextRef.current = new AudioContext({ sampleRate: 24000 });
     }
     const audioContext = playbackContextRef.current;
+
+    if (audioContext.state === "suspended") {
+        audioContext.resume();
+    }
+
     // Base64 → bytes
     const binaryString = atob(base64Audio);
     const bytes = new Uint8Array(binaryString.length);
@@ -35,6 +40,15 @@ export const playGeminiAudio = (base64Audio: string, playbackContextRef: {curren
     // Prevent gaps between chunks
     const currentTime = audioContext.currentTime;
     const startTime = Math.max(currentTime, nextAudioTimeRef.current);
+    console.log(
+        "PLAYING GEMINI AUDIO",
+        {
+            currentTime,
+            nextAudioTime: nextAudioTimeRef.current,
+            startTime,
+            duration: audioBuffer.duration,
+        }
+    );
     source.start(startTime);
     nextAudioTimeRef.current = startTime + audioBuffer.duration;
 };

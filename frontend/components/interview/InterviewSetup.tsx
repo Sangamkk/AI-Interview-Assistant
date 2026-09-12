@@ -7,19 +7,24 @@ interface InterviewSetupProps {
     onStart: (config: InterviewConfig) => void;
 }
 
-export default function InterviewSetup({ onStart,}: InterviewSetupProps) {
+export default function InterviewSetup({ onStart, }: InterviewSetupProps) {
 
     const [type, setType] = useState("Technical");
     const [subject, setSubject] = useState("Java");
-    const [language, setLanguage] = useState("Java");
     const [difficulty, setDifficulty] = useState("Medium");
     const [questionCount, setQuestionCount] = useState(10);
+    const [customSubject, setCustomSubject] = useState("");
 
     const handleStart = () => {
+        const finalSubject =
+            subject === "Custom" ? customSubject.trim() : subject;
+        if (!finalSubject) {
+            alert("Please enter a custom topic.");
+            return;
+        }
         const config: InterviewConfig = {
             type,
-            subject,
-            language,
+            subject: finalSubject,
             difficulty,
             questionCount,
         };
@@ -108,47 +113,15 @@ export default function InterviewSetup({ onStart,}: InterviewSetupProps) {
                             Custom Topic
                         </option>
                     </select>
-                </div>
-
-
-                {/* Programming Language */}
-
-                <div>
-                    <label className="block mb-2 font-medium">
-                        Programming Language
-                    </label>
-
-                    <select
-                        value={language}
-                        onChange={(e) =>
-                            setLanguage(e.target.value)
-                        }
-                        className="w-full border rounded-lg p-3"
-                    >
-                        <option value="Java">
-                            Java
-                        </option>
-
-                        <option value="Python">
-                            Python
-                        </option>
-
-                        <option value="C++">
-                            C++
-                        </option>
-
-                        <option value="JavaScript">
-                            JavaScript
-                        </option>
-
-                        <option value="TypeScript">
-                            TypeScript
-                        </option>
-
-                        <option value="C">
-                            C
-                        </option>
-                    </select>
+                    {subject === "Custom" && (
+                        <input
+                            type="text"
+                            value={customSubject}
+                            onChange={(e) => setCustomSubject(e.target.value)}
+                            placeholder="Enter your interview topic"
+                            className="w-full border rounded-lg p-3 mt-3"
+                        />
+                    )}
                 </div>
 
 

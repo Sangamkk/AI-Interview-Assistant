@@ -1,7 +1,6 @@
 export interface InterviewConfig {
     type: string;
     subject: string;
-    language: string;
     difficulty: string;
     questionCount: number;
 }
