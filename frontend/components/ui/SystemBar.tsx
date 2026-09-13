@@ -36,7 +36,7 @@ export default function SystemBar() {
 
       {/* SYSTEM NAME */}
       <p className="text-[14px] tracking-[0.08em] sm:text-[17px]">
-        AI INTERVIEW ASSISTANT SYSTEM
+        INTERVIEW ASSISTANT SYSTEM
       </p>
 
       {/* CONTROLS */}

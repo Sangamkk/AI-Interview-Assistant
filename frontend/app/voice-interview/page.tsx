@@ -915,79 +915,78 @@ export default function VoiceInterviewPage() {
                 // WEBSOCKET ERROR
                 // =================================================
 
-                socket.onerror =
-                    (error) => {
+                socket.onerror = (error) => {
+                    console.error("========== WEBSOCKET ERROR ==========");
+                    console.error(error);
+                };
 
-                        console.error(
-                            "Backend WebSocket connection failed:",
-                            error
-                        );
-
-                        setStatus(
-                            "Backend connection error"
-                        );
-                    };
+                socket.onclose = (event) => {
+                    console.error("========== WEBSOCKET CLOSED ==========");
+                    console.error("Code:", event.code);
+                    console.error("Reason:", event.reason);
+                    console.error("Clean:", event.wasClean);
+                };
 
                 // =================================================
                 // WEBSOCKET CLOSED
                 // =================================================
 
-                socket.onclose =
-                    (event) => {
+                // socket.onclose =
+                //     (event) => {
 
-                        console.log(
-                            "================================"
-                        );
+                //         console.log(
+                //             "================================"
+                //         );
 
-                        console.log(
-                            "BACKEND WEBSOCKET CLOSED"
-                        );
+                //         console.log(
+                //             "BACKEND WEBSOCKET CLOSED"
+                //         );
 
-                        console.log(
-                            "================================"
-                        );
+                //         console.log(
+                //             "================================"
+                //         );
 
-                        console.log(
-                            "Close code:",
-                            event.code
-                        );
+                //         console.log(
+                //             "Close code:",
+                //             event.code
+                //         );
 
-                        console.log(
-                            "Close reason:",
-                            event.reason
-                        );
+                //         console.log(
+                //             "Close reason:",
+                //             event.reason
+                //         );
 
-                        console.log(
-                            "Was clean:",
-                            event.wasClean
-                        );
+                //         console.log(
+                //             "Was clean:",
+                //             event.wasClean
+                //         );
 
-                        stopMicrophone();
+                //         stopMicrophone();
 
-                        setConnected(
-                            false
-                        );
+                //         setConnected(
+                //             false
+                //         );
 
-                        setListening(
-                            false
-                        );
+                //         setListening(
+                //             false
+                //         );
 
-                        if (
-                            event.code ===
-                            1009
-                        ) {
+                //         if (
+                //             event.code ===
+                //             1009
+                //         ) {
 
-                            setStatus(
-                                "Connection closed: audio message too large"
-                            );
+                //             setStatus(
+                //                 "Connection closed: audio message too large"
+                //             );
 
-                        } else {
+                //         } else {
 
-                            setStatus(
-                                "Disconnected"
-                            );
-                        }
-                    };
+                //             setStatus(
+                //                 "Disconnected"
+                //             );
+                //         }
+                //     };
 
             } catch (error) {
 

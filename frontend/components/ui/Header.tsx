@@ -28,7 +28,7 @@ export default function Header() {
                 {/* Logo text */}
                 <div>
                     <h1 className="text-[17px] leading-none tracking-[0.2em] text-[#473226]">
-                        AI INTERVIEW ASSISTANT
+                        PREP AI
                     </h1>
 
                     <p className="mt-2 text-[10px] tracking-[0.2em] text-[#806754]">
