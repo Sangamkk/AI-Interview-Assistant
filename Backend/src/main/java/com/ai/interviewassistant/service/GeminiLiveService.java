@@ -50,10 +50,11 @@ public class GeminiLiveService {
         // the first connection is still being established
         private final Map<String, Boolean> connectingSessions = new ConcurrentHashMap<>();
 
-        private final FeedbackService feedbackService;
+        private final InterviewCompletionService interviewCompletionService;
 
-        public GeminiLiveService(FeedbackService feedbackService, InterviewRepository interviewRepository) {
-                this.feedbackService = feedbackService;
+        public GeminiLiveService(InterviewCompletionService interviewCompletionService,
+                        InterviewRepository interviewRepository) {
+                this.interviewCompletionService = interviewCompletionService;
                 this.interviewRepository = interviewRepository;
         }
 
@@ -85,7 +86,7 @@ public class GeminiLiveService {
                                 interview.setScore(null);
                                 Interview savedInterview = interviewRepository.save(interview);
                                 interviewIds.put(frontendSession.getId(), savedInterview.getId());
-                                
+
                                 System.out.println("================================");
                                 System.out.println("FRONTEND SETUP RECEIVED");
                                 System.out.println("Subject: " + subject);
@@ -119,8 +120,8 @@ public class GeminiLiveService {
                         // =========================================
                         // FORWARD MESSAGE TO GEMINI
                         // =========================================
-                        System.out.println("Forwarding frontend message to Gemini:");
-                        System.out.println(payload);
+                        // System.out.println("Forwarding frontend message to Gemini:");
+                        // System.out.println(payload);
                         geminiSocket.sendText(payload, true);
 
                 } catch (Exception error) {
@@ -144,8 +145,7 @@ public class GeminiLiveService {
                 // PREVENT DUPLICATE CONNECTIONS
                 // =========================================
 
-                if (geminiSessions.containsKey(sessionId)
-                                || connectingSessions.putIfAbsent(sessionId, true) != null) {
+                if (geminiSessions.containsKey(sessionId) || connectingSessions.putIfAbsent(sessionId, true) != null) {
                         System.out.println(
                                         "Gemini session already exists " + "or is currently connecting: " + sessionId);
                         return;
@@ -170,10 +170,7 @@ public class GeminiLiveService {
                 httpClient.newWebSocketBuilder()
                                 .buildAsync(
                                                 URI.create(geminiUrl),
-                                                new GeminiWebSocketListener(
-                                                                frontendSession,
-                                                                subject,
-                                                                difficulty))
+                                                new GeminiWebSocketListener(frontendSession, subject, difficulty))
                                 .thenAccept(geminiSocket -> {
 
                                         System.out.println("Gemini WebSocket connected");
@@ -237,19 +234,11 @@ public class GeminiLiveService {
                                                 (socket, error) -> {
 
                                                         if (error != null) {
-
-                                                                System.err.println(
-                                                                                "Gemini setup send failed");
-
+                                                                System.err.println("Gemini setup send failed");
                                                                 error.printStackTrace();
-
                                                         } else {
-
-                                                                System.out.println(
-                                                                                "Gemini setup sent.");
-
-                                                                System.out.println(
-                                                                                "Waiting for setupComplete...");
+                                                                System.out.println("Gemini setup sent.");
+                                                                System.out.println("Waiting for setupComplete...");
                                                         }
                                                 });
         }
@@ -308,7 +297,7 @@ public class GeminiLiveService {
 
                                         if (inlineData != null && inlineData.has("data")) {
                                                 String audio = inlineData.get("data").asText();
-                                                System.out.println("Audio chunk received from Gemini");
+                                                // System.out.println("Audio chunk received from Gemini");
                                                 sendToFrontend(frontendSession, objectMapper.writeValueAsString(Map.of(
                                                                 "type",
                                                                 "AUDIO",
@@ -327,7 +316,7 @@ public class GeminiLiveService {
                         if (inputTranscription != null && inputTranscription.has("text")) {
                                 String text = inputTranscription.get("text").asText();
                                 candidateHasAnswered.put(frontendSession.getId(), true);
-                                System.out.println("USER TRANSCRIPTION: " + text);
+                                // System.out.println("USER TRANSCRIPTION: " + text);
 
                                 // Store candidate answer
                                 List<String> conversation = interviewConversations.get(frontendSession.getId());
@@ -351,7 +340,7 @@ public class GeminiLiveService {
 
                         if (outputTranscription != null && outputTranscription.has("text")) {
                                 String text = outputTranscription.get("text").asText();
-                                System.out.println("AI TRANSCRIPTION: " + text);
+                                // System.out.println("AI TRANSCRIPTION: " + text);
 
                                 // Store AI question
                                 List<String> conversation = interviewConversations.get(frontendSession.getId());
@@ -375,10 +364,21 @@ public class GeminiLiveService {
 
                                 System.out.println("Gemini turn complete");
                                 String sessionId = frontendSession.getId();
+                                System.out.println("================================");
+                                System.out.println("CHECKING INTERVIEW TURN");
+                                System.out.println("Session ID: " + sessionId);
+                                System.out.println("Current question: " + currentQuestions.get(sessionId));
+                                System.out.println("Question count: " + questionCounts.get(sessionId));
+                                System.out.println("================================");
                                 boolean candidateAnswered = candidateHasAnswered.getOrDefault(sessionId, false);
                                 boolean awaitingCandidate = awaitingCandidateAnswer.getOrDefault(sessionId, false);
                                 // Candidate has finished answering the question
-                                if (awaitingCandidate && candidateAnswered) {
+                                System.out.println("awaitingCandidateAnswer = "
+                                                + awaitingCandidate);
+
+                                System.out.println("candidateHasAnswered = "
+                                                + candidateAnswered);
+                                if (candidateAnswered) {
                                         boolean finalQuestion = markQuestionCompleted(sessionId);
                                         candidateHasAnswered.put(sessionId, false);
                                         awaitingCandidateAnswer.put(sessionId, false);
@@ -386,36 +386,25 @@ public class GeminiLiveService {
                                                 System.out.println("FINAL QUESTION COMPLETED");
                                                 List<String> conversation = interviewConversations.get(sessionId);
                                                 Long interviewId = interviewIds.get(sessionId);
-                                                feedbackService.generateFeedback(frontendSession, conversation,interviewId);
+                                                System.out.println("Interview ID: " + interviewId);
+                                                System.out.println("Conversation size: " + conversation.size());
+                                                interviewCompletionService.completeInterview(frontendSession,
+                                                                conversation, interviewId);
                                         }
                                 }
 
                                 // Gemini has finished asking a question
-                                else if (!awaitingCandidate && !candidateAnswered) {
+                                else {
 
-                                        awaitingCandidateAnswer.put(
-                                                        sessionId,
-                                                        true);
+                                        awaitingCandidateAnswer.put( sessionId, true);
                                 }
 
-                                sendToFrontend(
-                                                frontendSession,
-                                                "{\"type\":\"TURN_COMPLETE\"}");
+                                sendToFrontend(frontendSession, "{\"type\":\"TURN_COMPLETE\"}");
                         }
                 } catch (Exception error) {
                         System.err.println("Error forwarding Gemini response");
                         error.printStackTrace();
                 }
-        }
-
-        private boolean isInterviewComplete(String sessionId) {
-
-                Integer questionCount = questionCounts.get(sessionId);
-                Integer currentQuestion = currentQuestions.get(sessionId);
-                if (questionCount == null || currentQuestion == null) {
-                        return false;
-                }
-                return currentQuestion >= questionCount;
         }
 
         private boolean markQuestionCompleted(String sessionId) {
@@ -471,10 +460,9 @@ public class GeminiLiveService {
 
                 private void processGeminiMessage(WebSocket webSocket, String message) {
                         try {
-                                System.out.println("================================");
 
-                                System.out.println("GEMINI COMPLETE MESSAGE");
-                                System.out.println(message);
+                                // System.out.println("GEMINI COMPLETE MESSAGE");
+                                // System.out.println(message);
 
                                 JsonNode geminiMessage = objectMapper.readTree(message);
 
@@ -509,12 +497,6 @@ public class GeminiLiveService {
                                 }
 
                                 // =========================================
-                                // FORWARD AUDIO / TRANSCRIPTIONS
-                                // =========================================
-
-                                forwardGeminiResponse(frontendSession, geminiMessage);
-
-                                // =========================================
                                 // FIRST QUESTION COMPLETED
                                 // =========================================
 
@@ -533,6 +515,12 @@ public class GeminiLiveService {
                                                 sendToFrontend(frontendSession, "{\"type\":\"READY\"}");
                                         }
                                 }
+
+                                // =========================================
+                                // FORWARD AUDIO / TRANSCRIPTIONS
+                                // =========================================
+
+                                forwardGeminiResponse(frontendSession, geminiMessage);
                         } catch (Exception error) {
                                 System.err.println("Failed to process Gemini message");
                                 error.printStackTrace();
@@ -575,21 +563,21 @@ public class GeminiLiveService {
                 @Override
                 public CompletionStage<?> onBinary(WebSocket webSocket, ByteBuffer data, boolean last) {
 
-                        System.out.println("GEMINI BINARY FRAME RECEIVED");
+                        // System.out.println("GEMINI BINARY FRAME RECEIVED");
                         try {
                                 byte[] bytes = new byte[data.remaining()];
                                 data.get(bytes);
                                 String message = new String(bytes, StandardCharsets.UTF_8);
 
-                                System.out.println("Binary data converted to UTF-8:");
-                                System.out.println(message);
+                                // System.out.println("Binary data converted to UTF-8:");
+                                // System.out.println(message);
                                 binaryBuffer.append(message);
 
                                 if (last) {
                                         String completeMessage = binaryBuffer.toString();
                                         binaryBuffer.setLength(0);
-                                        System.out.println("Complete binary JSON received:");
-                                        System.out.println(completeMessage);
+                                        // System.out.println("Complete binary JSON received:");
+                                        // System.out.println(completeMessage);
                                         processGeminiMessage(webSocket, completeMessage);
                                 }
                         } catch (Exception error) {
@@ -616,11 +604,8 @@ public class GeminiLiveService {
                                         """;
 
                         System.out.println("SENDING FIRST INTERVIEW MESSAGE");
-                        System.out.println(firstMessage);
-                        geminiSocket
-                                        .sendText(
-                                                        firstMessage,
-                                                        true)
+                        // System.out.println(firstMessage);
+                        geminiSocket.sendText(firstMessage, true)
                                         .whenComplete(
                                                         (socket, error) -> {
                                                                 if (error != null) {

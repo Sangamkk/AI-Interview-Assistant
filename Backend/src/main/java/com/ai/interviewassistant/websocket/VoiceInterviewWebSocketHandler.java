@@ -32,11 +32,11 @@ public class VoiceInterviewWebSocketHandler
             WebSocketSession session,
             TextMessage message) {
 
-        System.out.println(
-                "Frontend message size: "
-                        + message.getPayloadLength()
-                        + " bytes"
-        );
+        // System.out.println(
+        //         "Frontend message size: "
+        //                 + message.getPayloadLength()
+        //                 + " bytes"
+        // );
 
         geminiLiveService.handleFrontendMessage(
                 session,

@@ -4,13 +4,16 @@ import com.ai.interviewassistant.dto.FeedbackResponse;
 import com.ai.interviewassistant.entity.Feedback;
 import com.ai.interviewassistant.entity.Interview;
 import com.ai.interviewassistant.repository.FeedbackRepository;
+import com.ai.interviewassistant.repository.InterviewRepository;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
-import com.ai.interviewassistant.repository.InterviewRepository;
+import org.springframework.web.socket.CloseStatus;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -45,7 +48,7 @@ public class FeedbackService {
     // 1. GENERATE FEEDBACK
     // =========================================================
 
-    public void generateFeedback(WebSocketSession frontendSession, List<String> conversation,Long interviewId) {
+    public void generateFeedback(WebSocketSession frontendSession, List<String> conversation, Long interviewId) {
 
         if (conversation == null || conversation.isEmpty()) {
             sendToFrontend(frontendSession,
@@ -53,7 +56,7 @@ public class FeedbackService {
             return;
         }
         String prompt = buildFeedbackPrompt(conversation);
-        requestFeedback(frontendSession, prompt,interviewId);
+        requestFeedback(frontendSession, prompt, interviewId);
     }
 
     // =========================================================
@@ -100,7 +103,7 @@ public class FeedbackService {
     // =========================================================
     // 3. SEND REQUEST TO GEMINI
     // =========================================================
-    private void requestFeedback(WebSocketSession frontendSession, String prompt,Long interviewId) {
+    private void requestFeedback(WebSocketSession frontendSession, String prompt, Long interviewId) {
 
         String url = "https://generativelanguage.googleapis.com/v1beta/models/"
                 + feedbackModel
@@ -208,6 +211,11 @@ public class FeedbackService {
                                             feedbackText));
 
                             sendToFrontend(frontendSession, frontendMessage);
+                            
+                            if (frontendSession.isOpen()) {
+                                System.out.println("Closing frontend WebSocket after interview completion");
+                                frontendSession.close(CloseStatus.NORMAL);
+                            }
                         } catch (Exception error) {
                             System.err.println("Failed to send feedback to frontend");
                             error.printStackTrace();
