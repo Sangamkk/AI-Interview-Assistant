@@ -3,6 +3,7 @@ export interface InterviewConfig {
     subject: string;
     difficulty: string;
     questionCount: number;
+    language?: string;
 }
 
 export interface QuestionDisplayProps {
