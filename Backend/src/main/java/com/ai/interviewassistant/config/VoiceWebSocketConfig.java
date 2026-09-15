@@ -25,15 +25,15 @@ public class VoiceWebSocketConfig implements WebSocketConfigurer {
 
         registry.addHandler(
                 voiceHandler,
-                "/ws/voice-interview"
-        ).setAllowedOrigins("http://localhost:3000");
+                "/ws/voice-interview").setAllowedOrigins(
+                        "http://localhost:3000",
+                        "https://prepai-assistant.netlify.app");
     }
 
     @Bean
     public ServletServerContainerFactoryBean createWebSocketContainer() {
 
-        ServletServerContainerFactoryBean container =
-                new ServletServerContainerFactoryBean();
+        ServletServerContainerFactoryBean container = new ServletServerContainerFactoryBean();
 
         // Maximum incoming text message size: 1 MB
         container.setMaxTextMessageBufferSize(1024 * 1024);
