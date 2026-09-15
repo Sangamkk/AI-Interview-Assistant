@@ -608,10 +608,11 @@ export default function VoiceInterviewPage() {
                 // CONNECT TO SPRING BOOT
                 // =================================================
 
-                const socket =
-                    new WebSocket(
-                        "ws://localhost:8080/ws/voice-interview"
-                    );
+                const WS_URL = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8080";
+
+                const socket = new WebSocket(
+                    `${WS_URL}/ws/voice-interview`
+                );
 
                 socketRef.current =
                     socket;
